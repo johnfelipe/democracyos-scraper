@@ -67,7 +67,7 @@ def process(line):
           intervencion = {}
           #Si no es final es comienzo, marcamos para el final
         elif firstPos != -1:
-          speach += line.translate(None, '“')[firstPos+1:]
+          speach += line[firstPos+1:]
           #retornamos para que se procese nuevamente la linea
           process(line[firstPos+1:])
       else:
@@ -90,7 +90,7 @@ def process(line):
 
 
 #EMPIEZA
-f = open("acta-201.txt", "r+")
+f = open("21147.txt", "r+")
 lines = f.readlines()
 
 akoman = Element('akomaNtoso')
