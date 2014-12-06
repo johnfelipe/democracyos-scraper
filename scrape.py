@@ -34,7 +34,20 @@ titulos = [
   'estudiante',
   'Director de Planeación',
   'presidente del Concejo',
-  'personero'
+  'personero',
+  'funcionaria de la Secretaría de Las Mujeres',
+  'el representante de la Secretaría de Seguridad',
+  'el representante del Área Metropolitana del Valle de Aburrá',
+  'en representación de Sintraemdes',
+  'en representación de Sintraemdes Medellín',
+  'la Secretaría del Medio Ambiente',
+  'contralora (e ) Hilda Zapata',
+  'representante legal de la Junta de Acción Comunal de Bellavista',
+  'representante de Corantioquia',
+  'delegado del Área Metropolitana',
+  'secretario (e) de Movilidad',
+  'representante de Corantioquia',
+  'representante del Isvimed'
   ]
 especial = {'La Presidencia':'Nicolás Albeiro Echeverri Alvarán'}
 
