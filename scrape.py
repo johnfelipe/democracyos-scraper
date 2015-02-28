@@ -5,6 +5,7 @@ from xml.etree.ElementTree import Element, SubElement, tostring, parse
 import sys, os, lxml.html, lxml.etree, urllib2
 from subprocess import call
 import unicodedata, string
+from time import strptime, strftime
 
 inSpeach = 0
 speach = ""
@@ -12,8 +13,10 @@ speaker = ""
 speaker_comp = ""
 persons = []
 titulos = [
-  'concejal ', 
-  'concejala ', 
+  'concejal ',
+  'Concejal ', 
+  'concejala ',
+  'Concejala ', 
   'La Presidencia', 
   'señor ', 
   'señora ', 
@@ -81,7 +84,6 @@ titulos = [
   'secretario (e) de Movilidad ',
   'Hábitat, Movilidad, Infraestructura y Sostenibilidad ',
   'Movilidad, Infraestructura y Sostenibilidad ',
-  'Vicealcalde de Gobernabilidad, Seguridad y Servicio a la Ciudadanía ',
   'Seguridad y Servicio a la Ciudadanía ',
   'Cultura, Participación, Recreación y Deporte ',
   'delegado de Derechos Humanos ',
@@ -91,21 +93,39 @@ titulos = [
   'seccional Antioquia ',
   'Banca de Inversión ',
   'Vamos Mujer ',
-  'Reconciliación y la Convivencia '
-  ]
+  'Reconciliación y la Convivencia ',
+  'Alcalde de Medellín',
+]
 especial = {
   'La Presidencia':'Nicolás Albeiro Echeverri Alvarán',
   'secretario (e) de Movilidad':'secretario de Movilidad',
   'Alcalde de Medellín':'Aníbal Gaviria Correa'
 }
+date_translation = {
+  'enero':'01',
+  'febrero':'02',
+  'marzo':'03',
+  'abril':'04',
+  'mayo':'05',
+  'junio':'06',
+  'julio':'07',
+  'agosto':'08',
+  'setiembre':'09',
+  'octubre':'10',
+  'noviembre':'11',
+  'diciembre':'12',
+}
+base_dir = '/home/notroot/sayit/sayit.mysociety.org'
 
 def speakers(line, special = 0):
   global titulos, speaker, references
   nameEnd = 0
-
+  print line
+  titulo=''
   for titulo in titulos:
     titlePos = line.find(titulo)
     if titlePos != -1:
+      print 'Encuentr el titulo '+ titulo
       nameEnd = line.find(':')
       name = line[titlePos+len(titulo):nameEnd]
       if titulo in especial:
@@ -121,6 +141,7 @@ def speakers(line, special = 0):
         break
       else:
         name = 'unknown'
+  print name;
   #Si es desconocido vemos si lo podemos sacar por la regla de la coma
   if (name == 'unknown'):
     titlePos = line.find(',')
@@ -172,7 +193,7 @@ def set_speakers():
   write(tostring(akoman), 'persons.xml')
 
 def process(line):
-  global inSpeach, speach, speaker, debate_section, speaker_comp
+  global inSpeach, speach, speaker, debate_section, speaker_comp, speechDate
   #Vemos que no esté vacía la línea y que el largo sea mayor a 4 para dejar los números de las páginas afuera
   if line != None and len(line) > 4:
     #Si está en speach agrego la linea salvo que tenga el cierre
@@ -190,6 +211,7 @@ def process(line):
           #Vemos si es final de speech
           intervencion = {
             'by': speaker,
+            'startTime' : startTime
           }
           #anadimos el speach
           speach += line[:lastPos+1]
@@ -246,7 +268,7 @@ def write(content, destination):
   f.close()
 
 def processTxt(fileName):
-  global akoman, debate, meta, references, debate_body, debate_section
+  global akoman, debate, meta, references, debate_body, debate_section, startTime
   i = 0
   akoman = Element('akomaNtoso')
   debate = SubElement(akoman, 'debate')
@@ -254,6 +276,7 @@ def processTxt(fileName):
   meta = SubElement(debate, 'meta')
   references = SubElement(meta, 'references')
   debate_section = SubElement(debate_body, 'debateSection')
+  dabate_date = SubElement(debate, 'docDate')
 
   f = open('actas/'+fileName, "r+")
   lines = f.readlines()
@@ -263,11 +286,27 @@ def processTxt(fileName):
     if line.find('ÍNDICE') != -1:
       debate_heading = SubElement(debate_section, 'heading')
       debate_heading.text = lines[i+1].decode('utf-8')
+    if line.find('FECHA') != -1:
+      date_pos = lines[i+2].find(',')
+      if date_pos:
+        speech_date_str = lines[i+2][date_pos+2:].replace('de ','').replace('\n','').replace('\r', '')
+        speech_date_arr = speech_date_str.split(' ')
+        print speech_date_arr[1]
+        if speech_date_arr[1] in date_translation:
+          speech_date_str.replace(speech_date_arr[1], date_translation[speech_date_arr[1]])
+          speech_date_str = speech_date_str.replace(speech_date_arr[1], date_translation[speech_date_arr[1]])
+          speech_date_obj = strptime(speech_date_str, "%d %m %Y")
+          startTime = strftime("%Y-%m-%dT%H:%M:%S", speech_date_obj)
+        else:
+          print "No se pudo convertir la fecha"
+      #print speechDate
     process(line)
     i+=1
   write(tostring(akoman), 'actas-xml/'+fileName.split('.')[0]+'.xml')
 
   f.close()
+  #print base_dir+'/manage.py load_akomantoso --file=actas-xml/23613.xml--instance=concejodemedellin2013 --commit'
+  #call(base_dir+'/manage.py load_akomantoso --file=/home/notroot/actas-consejo-medellin/actas-xml/23613.xml --instance=concejodemedellin2013 --commit', shell=True);
 
 def scrape(url):
   global persons
@@ -318,8 +357,10 @@ def scrape(url):
         try:
           processTxt(txtName)
           print 'Se convirtió a xml: '+xmlName
+          print 'Llamando a acomantoso'
+          call(base_dir+'/manage.py load_akomantoso --file=/home/notroot/actas-consejo-medellin/actas-xml/'+xmlName+' --instance=concejodemedellin2013 --commit', shell=True);
         except Exception as e:
-          print 'ERROR no se convertió a XML!!!!: ', e
+          print 'ERROR no se convertió a XML o no subió a Akomantoso!!!!: ', e
           continue
 
 #EMPIEZA
@@ -327,6 +368,7 @@ def scrape(url):
 #get_speakers()
 url = 'http://www.concejodemedellin.gov.co/concejo/concejo/index.php?sub_cat=7543'
 scrape(url)
-#processTxt('21559.txt')
+#processTxt('23613.txt')
 #call('pdftotext -nopgbrk actas/22991.pdf', shell=True)
 #set_speakers()
+#call('cd /home/sayit/sayit.mysociety.org/manage.py load_akomantoso --file=/home/sayit/actas-consejo-medellin/actas-xml/24131.xml --instance=concejodemedellin2013 --commit', shell=True);
