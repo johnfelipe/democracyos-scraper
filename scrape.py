@@ -18,6 +18,7 @@ titulos = [
   'concejala ',
   'Concejala ', 
   'La Presidencia', 
+  'Alcalde de Medellín',
   'señor ', 
   'señora ', 
   'comunidad ', 
@@ -39,12 +40,16 @@ titulos = [
   'Director de Planeación ',
   'presidente del Concejo ',
   'personero ',
+  'el Secretario Vicealcalde de Gobernabilidad, Seguridad y Servicio a la Ciudadanía ',
+  'la Secretaría de Gobierno del Departamento, programa ‘Entornos Protectores’ ', 
   'funcionaria de la Secretaría de Las Mujeres ',
   'el representante de la Secretaría de Seguridad ',
   'el representante del Área Metropolitana del Valle de Aburrá ',
   'en representación de Sintraemdes ',
   'en representación de Sintraemdes Medellín ',
   'la Secretaría del Medio Ambiente ',
+  'Secretaria Vicealcaldesa de Educación, Cultura, Participación, Recreación y Deporte ',
+  'vicealcalde de de Salud, Inclusión Social y Familia ',
   'contralora (e ) ',
   'representante legal de la Junta de Acción Comunal de Bellavista ',
   'representante de Corantioquia ',
@@ -94,7 +99,7 @@ titulos = [
   'Banca de Inversión ',
   'Vamos Mujer ',
   'Reconciliación y la Convivencia ',
-  'Alcalde de Medellín',
+  'corporación Universidad Remington '
 ]
 especial = {
   'La Presidencia':'Nicolás Albeiro Echeverri Alvarán',
@@ -289,7 +294,7 @@ def processTxt(fileName):
     if line.find('FECHA') != -1:
       date_pos = lines[i+2].find(',')
       if date_pos:
-        speech_date_str = lines[i+2][date_pos+2:].replace('de ','').replace('\n','').replace('\r', '')
+        speech_date_str = lines[i+2][date_pos+2:].replace('de ','').replace('\n','').replace('\r', '').replace('°','')
         speech_date_arr = speech_date_str.split(' ')
         print speech_date_arr[1]
         if speech_date_arr[1] in date_translation:
@@ -358,7 +363,7 @@ def scrape(url):
           processTxt(txtName)
           print 'Se convirtió a xml: '+xmlName
           print 'Llamando a acomantoso'
-          call(base_dir+'/manage.py load_akomantoso --file=/home/notroot/actas-consejo-medellin/actas-xml/'+xmlName+' --instance=concejodemedellin2013 --commit', shell=True);
+          #call(base_dir+'/manage.py load_akomantoso --file=/home/notroot/actas-consejo-medellin/actas-xml/'+xmlName+' --instance=concejodemedellin2013 --commit', shell=True);
         except Exception as e:
           print 'ERROR no se convertió a XML o no subió a Akomantoso!!!!: ', e
           continue
