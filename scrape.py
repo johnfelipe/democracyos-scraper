@@ -360,11 +360,11 @@ def scrape(url):
         print 'Ya existe el xml: '+xmlName
       else:
         try:
-			  processTxt(txtName)
-			  print 'Se convirtió a xml: '+xmlName
-			  print 'Llamando a acomantoso'
-			  # esta es el call para hacerlo en orden
-			  call(base_dir+'/manage.py load_akomantoso --file=/home/notroot/actas-consejo-medellin/actas-xml/'+xmlName+' --instance=concejodemedellin2013 --commit', shell=True);
+          processTxt(txtName)
+          print 'Se convirtió a xml: '+xmlName
+          print 'Llamando a acomantoso'
+		  #Este es el call para hacerlo en orden
+          call(base_dir+'/manage.py load_akomantoso --file=/home/notroot/actas-consejo-medellin/actas-xml/'+xmlName+' --instance=concejodemedellin --commit', shell=True);
         except Exception as e:
           print 'ERROR no se convertió a XML o no subió a Akomantoso!!!!: ', e
           continue
