@@ -248,7 +248,8 @@ def process(line):
           process(newLine)
         speaker_comp = ""
       #Vemos si son Intervinientes
-      if line.find('Intervino') != -1 or line.find('Palabras del') != -1 or line.find('Continuó') != -1:
+      #if line.find('Intervino') != -1 or line.find('Palabras del') != -1 or line.find('Continuó') != -1:
+	  if line.find('Intervino') != -1 or line.find('Palabras del') != -1 or line.find('Continuó') != -1 or line.find('Interviene') != -1 or line.find('Continúa') != -1 or line.find('La Secretaría') != -1 or line.find('Interpela') != -1 or line.find('Responde') != -1 or line.find('Informa') != -1:
         #Vemos si el speaker esta en 2 lineas
         if line.find(':') == -1 :
           comp_start = line.find(',')
