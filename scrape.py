@@ -1,6 +1,8 @@
 #!/usr/bin/python2.7
 # -*- coding: utf-8 -*-
 
+import re
+from urlparse import urlparse
 from xml.etree.ElementTree import Element, SubElement, tostring, parse
 import sys, os, lxml.html, lxml.etree, urllib2
 from subprocess import call
@@ -313,81 +315,119 @@ def processTxt(fileName):
         #print speechDate
         process(line)
         i+=1
+        
     write(tostring(akoman), 'actas-xml/'+fileName.split('.')[0]+'.xml')
 
     f.close()
     #print base_dir+'/manage.py load_akomantoso --file=actas-xml/23613.xml--instance=concejodemedellin2013 --commit'
     #call(base_dir+'/manage.py load_akomantoso --file=/home/notroot/actas-consejo-medellin/actas-xml/23613.xml --instance=concejodemedellin2013 --commit', shell=True);
 
-def scrape(url):
-    global persons
 
+def get_items(url, selector):
     req = urllib2.Request(url)
     response = urllib2.urlopen(req)
     body = response.read()
     doc = lxml.html.document_fromstring(body)
-    sessions = doc.cssselect('.menu_sesion')
+    sessions = doc.cssselect(selector)
+    return sessions
+
+
+def is_valid_url(url):
+    regex = re.compile(
+        r'^(http|ftp|file|https):///?'
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'
+        r'localhost|[a-zA-Z0-9-]*|'
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
+        r'(?::\d+)?'
+        r'(?:/?|[/?]\S+)$',
+        re.IGNORECASE
+    )
+    return regex.search(url)
+
+
+def is_pdf_attachment(url):
+    if is_valid_url(url):
+        parse_object = urlparse(url)
+        url_ext = os.path.splitext(os.path.basename(parse_object.path))[1]
+        url_loc = parse_object.netloc
+
+        if 'files' in url_loc and url_ext == '.pdf':
+            return True
+    return False
+
+
+def scrape(url):
+    global persons
 
     #recorremos la página que se supone de actas
-    for session in sessions:
-        print session
+    for session in get_items(url, '.entry-title'):
         link = session.cssselect('a')
 
-        #tomamos solo los links a actas, sin firmas
-        if link[0].text.find('firmas') == -1:
-            persons = []
-            print link[0].text
-            relativeUrl_arr = url.split('/')
-            relativeUrl_arr.remove(relativeUrl_arr[-1])
-            relativeUrl = '/'.join(relativeUrl_arr)+'/'
-            pdfUrl = os.path.join(relativeUrl, link[0].attrib['href'])
-            pdfFile = pdfUrl.split('/')[-1]
+        for item in get_items(link[0].get('href'), 'a'):
 
-            #Nos fijamos si ya descargamos el pdf
-            cache = os.path.join('actas/', pdfFile)
-            if os.path.exists(cache):
-                print 'Ya fue procesado: '+cache
+            if is_pdf_attachment(unicode(item.get('href'))):
+                print item.get('href')
 
-            else:
-                req = urllib2.Request(pdfUrl)
-                response = urllib2.urlopen(req)
-                body = response.read()
-                write(body,'actas/'+pdfFile)
-                print 'Se descargó '+ pdfFile
+        # print dir(link[0])
+        
+        # for i, j in link[0].keys(), link[0].values():
+        #     print i, j
 
-            #Nos fijamos si lo tenemos convertido a txt
-            txtName = pdfFile.split('.')[0]+'.txt'
-            if os.path.exists('actas/'+txtName):
-                print 'Ya fue convertido a txt: '+txtName
+        # #tomamos solo los links a actas, sin firmas
+        # if link[0].text.find('firmas') == -1:
+        #     persons = []
+        #     print link[0].text
+        #     relativeUrl_arr = url.split('/')
+        #     relativeUrl_arr.remove(relativeUrl_arr[-1])
+        #     relativeUrl = '/'.join(relativeUrl_arr)+'/'
+        #     pdfUrl = os.path.join(relativeUrl, link[0].attrib['href'])
+        #     pdfFile = pdfUrl.split('/')[-1]
 
-            else:
-                #Hay un tema acá y es que no le estoy pudiendo pasar 2 argumentos
-                try:
-                    call('pdftotext -nopgbrk actas/'+pdfFile, shell=True);
-                    print 'se convertió a TXT: '+txtName
-                except Exception as e:
-                    print 'ERROR no se convertió a TXT!!!!: ', e
-                    continue
+        #     #Nos fijamos si ya descargamos el pdf
+        #     cache = os.path.join('actas/', pdfFile)
+        #     if os.path.exists(cache):
+        #         print 'Ya fue procesado: '+cache
 
-            xmlName = pdfFile.split('.')[0]+'.xml'
-            if os.path.exists('actas-xml/'+xmlName):
-                print 'Ya existe el xml: '+xmlName
+        #     else:
+        #         req = urllib2.Request(pdfUrl)
+        #         response = urllib2.urlopen(req)
+        #         body = response.read()
+        #         write(body,'actas/'+pdfFile)
+        #         print 'Se descargó '+ pdfFile
 
-            else:
-                try:
-                    processTxt(txtName)
-                    print 'Se convirtió a xml: '+xmlName
-                    print 'Llamando a acomantoso'
-                    #Este es el call para hacerlo en orden
-                    call(base_dir+'/manage.py load_akomantoso --file=/home/notroot/actas-consejo-medellin/actas-xml/'+xmlName+' --instance=concejodemedellin --commit', shell=True);
-                except Exception as e:
-                    print 'ERROR no se convertió a XML o no subió a Akomantoso!!!!: ', e
-                    continue
+        #     #Nos fijamos si lo tenemos convertido a txt
+        #     txtName = pdfFile.split('.')[0]+'.txt'
+        #     if os.path.exists('actas/'+txtName):
+        #         print 'Ya fue convertido a txt: '+txtName
+
+        #     else:
+        #         #Hay un tema acá y es que no le estoy pudiendo pasar 2 argumentos
+        #         try:
+        #             call('pdftotext -nopgbrk actas/'+pdfFile, shell=True);
+        #             print 'se convertió a TXT: '+txtName
+        #         except Exception as e:
+        #             print 'ERROR no se convertió a TXT!!!!: ', e
+        #             continue
+
+        #     xmlName = pdfFile.split('.')[0]+'.xml'
+        #     if os.path.exists('actas-xml/'+xmlName):
+        #         print 'Ya existe el xml: '+xmlName
+
+        #     else:
+        #         try:
+        #             processTxt(txtName)
+        #             print 'Se convirtió a xml: '+xmlName
+        #             print 'Llamando a acomantoso'
+        #             #Este es el call para hacerlo en orden
+        #             call(base_dir+'/manage.py load_akomantoso --file=/home/notroot/actas-consejo-medellin/actas-xml/'+xmlName+' --instance=concejodemedellin --commit', shell=True);
+        #         except Exception as e:
+        #             print 'ERROR no se convertió a XML o no subió a Akomantoso!!!!: ', e
+        #             continue
 
 #EMPIEZA
 #Vemos si tenemos procesadas todas las actas
 #get_speakers()
-url = 'http://www.concejodemedellin.gov.co/concejo/concejo/index.php?sub_cat=7543'
+url = 'https://comision6senado.wordpress.com/category/actas/'
 scrape(url)
 #este es para procesar un txt individual
 #processTxt('23613.txt')
