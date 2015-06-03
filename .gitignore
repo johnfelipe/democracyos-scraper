@@ -2,3 +2,4 @@ virtualenv
 *.xml
 *.pdf
 *.txt
+*.sublime-workspace
