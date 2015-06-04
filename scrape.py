@@ -8,6 +8,7 @@ import sys, os, lxml.html, lxml.etree, urllib2
 from subprocess import call
 import unicodedata, string
 from time import strptime, strftime
+import xml.dom.minidom
 
 import unicodedata
 from cStringIO import StringIO
@@ -41,7 +42,16 @@ def text_to_xml(fname):
 
     f = open(fname)
     fcontent = f.read()
-    fcontent = re.sub(r' \n(\w*) ([0-9]*)/([0-9]*) - (\w*) ([0-9]*)/([0-9]*) \n(\w*) (\w*) ([0-9]*)-([0-9]*) \n(.*) \n \n \n\n\f([0-9]*)', '', fcontent)
+    fcontent = re.sub(r' \n(\w*)(.*)([0-9]*)/([0-9]*) ([–-]) (\w*) ([0-9]*)/([0-9]*) \n(\w*) (\w*) ([0-9]*)-([0-9]*) \n(.*) \n \n \n\n\f([0-9]*)', '', fcontent)
+    fcontent = re.sub(r'\n(\w*)(.*)([0-9]*)/([0-9]*) ([–-]) (\w*) ([0-9]*)/([0-9]*) \n(\w*) (\w*) ([0-9]*)-([0-9]*) \n(.*) \n \n\n(.*) \n\n\f', '', fcontent)
+    fcontent = re.sub(r'\n(\w*)(.*)([0-9]*)/([0-9]*) ([–-]) (\w*) ([0-9]*)/([0-9]*) \n(\w*) (\w*) ([0-9]*)-([0-9]*) \n\n(.*) \n\n\f', '', fcontent)
+    fcontent = re.sub(r'\n(\w*)(.*)([0-9]*)/([0-9]*) ([–-]) (\w*) ([0-9]*)/([0-9]*) \n(\w*) (\w*) ([0-9]*)-([0-9]*)', '', fcontent)
+
+    f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.txt', 'w')
+    f.write(fcontent)
+    f.close()
+
+    fcontent = re.sub(r'\f', '', fcontent)
     fcontent = re.sub(r'  ', ' ', fcontent)
     fcontent = re.sub(r'  ', ' ', fcontent)
     fcontent = re.sub(r'   ', ' ', fcontent)
@@ -50,7 +60,11 @@ def text_to_xml(fname):
     fcontent = re.sub(r'\n\n \n\n([0-9]*)', '', fcontent)
     fcontent = re.sub(r'([\*]*)', '', fcontent)
     fcontent = re.sub(r'III', '', fcontent)
-    fcontent = re.match(r'^(.*)LO QUE PROPONGAN LOS HONORABLES SENADORES\.(.*)', fcontent, re.DOTALL).group(2)
+    fcontent_match = re.match(r'^(.*)LO QUE PROPONGAN LOS HONORABLES SENADORES\.(.*)', fcontent, re.DOTALL)
+
+    if fcontent_match:
+        fcontent = fcontent_match.group(2)
+
     fcontent = re.sub(r' – ', '-', fcontent)
     fcontent = re.sub(r'– ', '-', fcontent)
     fcontent = re.sub(r' –', '-', fcontent)
@@ -95,8 +109,10 @@ def text_to_xml(fname):
     for key, value in PERSONS.iteritems():
         se_person_tag = SubElement(references, 'TLCPerson', **value)
 
+    xml_content = xml.dom.minidom.parseString(tostring(akoman))
+
     f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.xml', 'w')
-    f.write(tostring(akoman))
+    f.write(xml_content.toprettyxml().encode('utf-8'))
     f.close()
 
 
@@ -179,9 +195,8 @@ def scrape(url):
 
             if is_pdf_attachment(unicode(item.get('href'))):
                 # download_file(unicode(item.get('href')))
-                # pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
+                pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
                 text_to_xml('text/'+os.path.splitext(unicode(os.path.basename(item.get('href'))))[0]+'.txt')
-                raise Exception
 
 
 url = 'https://comision6senado.wordpress.com/category/actas/'
