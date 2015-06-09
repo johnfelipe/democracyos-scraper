@@ -1,16 +1,13 @@
 #!/usr/bin/python2.7
 # -*- coding: utf-8 -*-
 
-import re
-from urlparse import urlparse
+import sys, os, re, lxml.html, lxml.etree, urllib2
+import xml.dom.minidom
 from xml.etree.ElementTree import Element, SubElement, tostring, parse
-import sys, os, lxml.html, lxml.etree, urllib2
-from subprocess import call
+from urlparse import urlparse
 import unicodedata, string
 from time import strptime, strftime
-import xml.dom.minidom
 
-import unicodedata
 from cStringIO import StringIO
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.converter import TextConverter
@@ -23,12 +20,37 @@ PERSON_TITLES = [
     ['H. S. Eugenio Prieto Soto', 'Presidente', 'El Presidente'],
     ['Dra. Sandra Ovalle García', 'Secretaria', 'La Secretaria'],
     ['Dr. Diego Molano Vega', 'Ministro de TIC', 'Ministro de Tecnologías de la Información y las Comunicaciones'],
-    ['Dr. Carlos Pablo Márquez', 'CRC', 'Director Ejecutivo Comisión De Regulación De Comunicaciones (CRC)']
+    ['Dr. Carlos Pablo Márquez', 'CRC', 'Director Ejecutivo Comisión De Regulación De Comunicaciones \(CRC\)']
 ]
+
 _slugify_strip_re = re.compile(r'[^\w\s-]')
 _slugify_hyphenate_re = re.compile(r'[-\s]+')
 
 
+class CustomHTTPRedirectHandler(urllib2.HTTPRedirectHandler):
+    def http_error_302(self, req, fp, code, msg, headers):
+        return urllib2.HTTPRedirectHandler.http_error_302(self, req, fp, code, msg, headers)
+
+    http_error_301 = http_error_303 = http_error_307 = http_error_302
+
+
+class HeadRequest(urllib2.Request):
+    def get_method(self):
+        return "HEAD"
+
+
+def get_status_code(url):
+
+    try:
+        cookieprocessor = urllib2.HTTPCookieProcessor()
+        opener = urllib2.build_opener(CustomHTTPRedirectHandler, cookieprocessor)
+        urllib2.install_opener(opener)
+        response = urllib2.urlopen(url)
+        return response.getcode()
+    except Exception:
+        return 404
+
+    
 def _slugify(value):
     if not isinstance(value, unicode):
         value = unicode(value)
@@ -36,61 +58,98 @@ def _slugify(value):
     value = unicode(_slugify_strip_re.sub('', value).strip().lower())
     return _slugify_hyphenate_re.sub('-', value)
 
+    
+def clean_text(text):
+    text = re.sub(r' \n(\w*)(.*)([0-9]*)/([0-9]*) ([–-]) (\w*) ([0-9]*)/([0-9]*) \n(\w*) (\w*) ([0-9]*)-([0-9]*) \n(.*) \n \n \n\n\f([0-9]*)', '', text)
+    text = re.sub(r'\n(\w*)(.*)([0-9]*)/([0-9]*) ([–-]) (\w*) ([0-9]*)/([0-9]*) \n(\w*) (\w*) ([0-9]*)-([0-9]*) \n(.*) \n \n\n(.*) \n\n\f', '', text)
+    text = re.sub(r'\n(\w*)(.*)([0-9]*)/([0-9]*) ([–-]) (\w*) ([0-9]*)/([0-9]*) \n(\w*) (\w*) ([0-9]*)-([0-9]*) \n\n(.*) \n\n\f', '', text)
+    text = re.sub(r'\n(\w*)(.*)([0-9]*)/([0-9]*) ([–-]) (\w*) ([0-9]*)/([0-9]*) \n(\w*) (\w*) ([0-9]*)-([0-9]*)', '', text)
+    text = re.sub(r'\f', '', text)
+    text = re.sub(r'  ', ' ', text)
+    text = re.sub(r'  ', ' ', text)
+    text = re.sub(r'   ', ' ', text)
+    text = re.sub(r'    ', ' ', text)
+    text = re.sub(r'I \n', '', text)
+    text = re.sub(r'II \n', '', text)
+    text = re.sub(r'III \n', '', text)
+    text = re.sub(r'IV \n', '', text)
+    text = re.sub(r'Llamada a lista.', '', text)
+    text = re.sub(r'\n\n \n\n \n', '', text)
+    text = re.sub(r'\n\n \n\n([0-9]*)', '', text)
+    text = re.sub(r'([\*]*)', '', text)
+    text = re.sub(r' – ', '-', text)
+    text = re.sub(r'– ', '-', text)
+    text = re.sub(r' –', '-', text)
+    text = re.sub(r' - ', '-', text)
+    text = re.sub(r'- ', '-', text)
+    text = re.sub(r' -', '-', text)
+    text = re.sub(r'-\n', '-', text)
+    text = re.sub(r' \n', ' ', text)
+    text = re.sub(r' \n', ' ', text)
+    text = re.sub(r'H\.S\. ', r'H. S. ', text)
+    text = re.sub(r'H\. S ', r'H. S. ', text)
+    # text = re.sub(r'  ', r'<br />', text)
+    return text
+
+def clean_speakers(text):
+
+    for i in PERSON_TITLES:
+        text = re.sub(i[0]+', '+i[1]+':', '\n'+i[0]+':', text)
+        text = re.sub(i[2]+'-'+i[0]+':', '\n'+i[0]+':', text)
+        text = re.sub(i[1]+'-'+i[0]+':', '\n'+i[0]+':', text)
+        text = re.sub(i[1]+':', '\n'+i[0]+':', text)
+
+    text = re.sub(r'[^\n]H\. S\.', r'\nH. S.', text)
+
+    return text
 
 def text_to_xml(fname):
     print 'Convirtiendo TXT a XML '+fname
 
     f = open(fname)
     fcontent = f.read()
-    fcontent = re.sub(r' \n(\w*)(.*)([0-9]*)/([0-9]*) ([–-]) (\w*) ([0-9]*)/([0-9]*) \n(\w*) (\w*) ([0-9]*)-([0-9]*) \n(.*) \n \n \n\n\f([0-9]*)', '', fcontent)
-    fcontent = re.sub(r'\n(\w*)(.*)([0-9]*)/([0-9]*) ([–-]) (\w*) ([0-9]*)/([0-9]*) \n(\w*) (\w*) ([0-9]*)-([0-9]*) \n(.*) \n \n\n(.*) \n\n\f', '', fcontent)
-    fcontent = re.sub(r'\n(\w*)(.*)([0-9]*)/([0-9]*) ([–-]) (\w*) ([0-9]*)/([0-9]*) \n(\w*) (\w*) ([0-9]*)-([0-9]*) \n\n(.*) \n\n\f', '', fcontent)
-    fcontent = re.sub(r'\n(\w*)(.*)([0-9]*)/([0-9]*) ([–-]) (\w*) ([0-9]*)/([0-9]*) \n(\w*) (\w*) ([0-9]*)-([0-9]*)', '', fcontent)
+
+    match = re.match(r'^(.*)ACTA No\. ([0-9]*)(.*)', fcontent, re.DOTALL)
+    acta = match.group(2)
+    intro = match.group(3)
+
+    match = re.match(r'^(.*)CUESTIONARIO(.*)', intro, re.DOTALL)
+
+    if match:
+        narrative = match.group(1)
+        questions = match.group(2)
+    else:
+        narrative = questions = intro
+    
+    match = re.match(r'^(.*)ORDEN DEL \w(.*)', narrative, re.DOTALL)
+    q_narrative = clean_text(match.group(1))
+    s_narrative = clean_text(match.group(2))
+    
+    match = re.match(r'^(.*)LO QUE PROPONGAN LOS HONORABLES SENADORES.(.*)', questions, re.DOTALL)
+    questions = match.group(1)
+    speech = match.group(2)
+
+    speech = clean_text(speech)
+    speech = clean_speakers(speech)
 
     f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.txt', 'w')
-    f.write(fcontent)
+    f.write(speech)
     f.close()
 
-    fcontent = re.sub(r'\f', '', fcontent)
-    fcontent = re.sub(r'  ', ' ', fcontent)
-    fcontent = re.sub(r'  ', ' ', fcontent)
-    fcontent = re.sub(r'   ', ' ', fcontent)
-    fcontent = re.sub(r'    ', ' ', fcontent)
-    fcontent = re.sub(r'\n\n \n\n \n', '', fcontent)
-    fcontent = re.sub(r'\n\n \n\n([0-9]*)', '', fcontent)
-    fcontent = re.sub(r'([\*]*)', '', fcontent)
-    fcontent = re.sub(r'III', '', fcontent)
-    fcontent_match = re.match(r'^(.*)LO QUE PROPONGAN LOS HONORABLES SENADORES\.(.*)', fcontent, re.DOTALL)
-
-    if fcontent_match:
-        fcontent = fcontent_match.group(2)
-
-    fcontent = re.sub(r' – ', '-', fcontent)
-    fcontent = re.sub(r'– ', '-', fcontent)
-    fcontent = re.sub(r' –', '-', fcontent)
-    fcontent = re.sub(r' - ', '-', fcontent)
-    fcontent = re.sub(r'-\n', '-', fcontent)
-    fcontent = re.sub(r' \n', ' ', fcontent)
-    fcontent = re.sub(r' \n', ' ', fcontent)
-    fcontent = re.sub(r'H\.S\. ', r'H. S. ', fcontent)
-    fcontent = re.sub(r'H\. S ', r'H. S. ', fcontent)
-
-    for i in PERSON_TITLES:
-        fcontent = re.sub(i[0]+', '+i[1]+':', '\n'+i[0]+':', fcontent)
-        fcontent = re.sub(i[2]+'-'+i[0]+':', '\n'+i[0]+':', fcontent)
-        fcontent = re.sub(i[1]+'-'+i[0]+':', '\n'+i[0]+':', fcontent)
-        fcontent = re.sub(i[1]+':', '\n'+i[0]+':', fcontent)
-
-    fcontent = re.sub(r'[^\n]H\. S\.', r'\nH. S.', fcontent)
-    flist = fcontent.decode('utf-8').split('\n')
+    flist = speech.decode('utf-8').split('\n')
 
     akoman = Element('akomaNtoso')
     debate = SubElement(akoman, 'debate')
-    dabate_date = SubElement(debate, 'docDate')
     debate_body = SubElement(debate, 'debateBody')
     debate_section = SubElement(debate_body, 'debateSection')
     meta = SubElement(debate, 'meta')
+    preface = SubElement(debate, 'preface')
+    doctitle = SubElement(preface, 'docTitle')
+    doctitle.text = unicode('ACTA No. '+acta)
+    docdate = SubElement(preface, 'docDate')
     references = SubElement(meta, 'references')
+    na = SubElement(debate_section, 'narrative')
+    na.text = unicode(s_narrative.decode('utf-8'))
 
     for j in flist:
         se_person = j.split(':')[0]
@@ -104,7 +163,10 @@ def text_to_xml(fname):
             }
 
             se = SubElement(debate_section, 'speech', by='#'+se_person_slug)
-            se.text = j[len(se_person+':'):]
+            sef = SubElement(se, 'from')
+            sef.text = unicode(se_person)
+            sep = SubElement(se, 'p')
+            sep.text = unicode(j[len(se_person+':'):])
 
     for key, value in PERSONS.iteritems():
         se_person_tag = SubElement(references, 'TLCPerson', **value)
@@ -188,15 +250,33 @@ def pdf_to_text(fname):
 
 def scrape(url):
 
-    for session in get_items(url, '.entry-title'):
-        link = session.cssselect('a')
+    pages = 1
+    validpages = []
 
-        for item in get_items(link[0].get('href'), 'a'):
+    print 'Obteniendo páginas válidas ...'
 
-            if is_pdf_attachment(unicode(item.get('href'))):
-                # download_file(unicode(item.get('href')))
-                pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
-                text_to_xml('text/'+os.path.splitext(unicode(os.path.basename(item.get('href'))))[0]+'.txt')
+    while True:
+        if get_status_code(url+'page/'+str(pages)) != 404:
+            print url+'page/'+str(pages)
+            validpages.append(url+'page/'+str(pages))
+            pages += 1
+        else:
+            break
+    # validpages = [
+    #     'https://comision6senado.wordpress.com/category/actas/page/1',
+    #     'https://comision6senado.wordpress.com/category/actas/page/2'
+    #     ]
+
+    for page in validpages:
+        for session in get_items(page, '.entry-title'):
+            link = session.cssselect('a')
+
+            for item in get_items(link[0].get('href'), 'a'):
+
+                if is_pdf_attachment(unicode(item.get('href'))):
+                    download_file(unicode(item.get('href')))
+                    pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
+                    text_to_xml('text/'+os.path.splitext(unicode(os.path.basename(item.get('href'))))[0]+'.txt')
 
 
 url = 'https://comision6senado.wordpress.com/category/actas/'
