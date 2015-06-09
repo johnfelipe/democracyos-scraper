@@ -15,6 +15,7 @@ from pdfminer.layout import LAParams
 from pdfminer.pdfpage import PDFPage
 
 
+DOMAIN = 'senado.felipeurrego.com'
 PERSONS = {}
 PERSON_TITLES = [
     ['H. S. Eugenio Prieto Soto', 'Presidente', 'El Presidente'],
@@ -157,7 +158,7 @@ def text_to_xml(fname):
 
         if se_person_slug:
             PERSONS[se_person_slug] = {
-                'href': '/ontology/person/senado.felipeurrego.com/'+se_person_slug,
+                'href': '/ontology/person/'+DOMAIN+'/'+se_person_slug,
                 'id': se_person_slug,
                 'showAs': se_person,
             }
