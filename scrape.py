@@ -383,10 +383,12 @@ def scrape(url):
                     text_to_xml('text/'+os.path.splitext(unicode(os.path.basename(item.get('href'))))[0]+'.txt', unicode(item.get('href')))
 
 base_dir = '/home/notroot/sayit/sayit.mysociety.org'
-url = 'https://comision6senado.wordpress.com/category/actas/'
-scrape(url)
+# url = 'https://comision6senado.wordpress.com/category/actas/'
+# scrape(url)
 
-for f in os.listdir('xml'):
+xmldir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'xml')
+
+for f in os.listdir(xmldir):
     if f.endswith('.xml'):
-        xmlpath = os.path.join(path, f)
+        xmlpath = os.path.join(xmldir, f)
         call(base_dir+'/manage.py load_akomantoso --file='+xmlpath+' --instance=concejodemedellin --commit --merge-existing', shell=True)
