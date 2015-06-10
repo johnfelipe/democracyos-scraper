@@ -7,6 +7,7 @@ from xml.etree.ElementTree import Element, SubElement, tostring, parse
 from urlparse import urlparse
 import unicodedata, string
 from datetime import datetime
+from subprocess import call
 
 from cStringIO import StringIO
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
@@ -155,7 +156,7 @@ def is_valid_person(person):
     return False
 
 
-def text_to_xml(fname):
+def text_to_xml(fname, url):
     print 'Convirtiendo TXT a XML '+fname
 
     f = open(fname)
@@ -220,8 +221,8 @@ def text_to_xml(fname):
     preface = SubElement(debate, 'preface')
     doctitle = SubElement(preface, 'docTitle')
     doctitle.text = unicode('ACTA No. '+acta)
-    docdate = SubElement(preface, 'docDate')
-    docdate.text = unicode(dateobject.strftime('%d-%m-%Y'))
+    # docdate = SubElement(preface, 'docDate', date=unicode(dateobject.strftime('%d-%m-%Y')))
+    link = SubElement(preface, 'link', href=url)
 
     # DEBATE BODY
     debate_body = SubElement(debate, 'debateBody')
@@ -241,16 +242,20 @@ def text_to_xml(fname):
     nq = SubElement(debate_section_4, 'narrative')
     nq.text = unicode(q_narrative.decode('utf-8'))
 
-    qss = SubElement(debate_section_4, 'questions')
+    if qlist:
+        qss = SubElement(debate_section_4, 'questions')
+        qssds = SubElement(qss, 'debateSection')
+        qssh = SubElement(qssds, 'heading')
+        qssh.text = 'CUESTIONARIO'
 
-    for q in qlist:
-        if q:
-            if q[0].isdigit():
-                qs = SubElement(qss, 'question')
-                qs.text = unicode(q)
-            else:
-                qs = SubElement(qss, 'narrative')
-                qs.text = unicode(q)
+        for q in qlist:
+            if q:
+                if q[0].isdigit():
+                    qs = SubElement(qssds, 'question')
+                    qs.text = unicode(q)
+                else:
+                    qs = SubElement(qssds, 'narrative')
+                    qs.text = unicode(q)
 
     na = SubElement(debate_section_4, 'narrative')
     na.text = unicode(s_narrative.decode('utf-8'))
@@ -266,7 +271,8 @@ def text_to_xml(fname):
                 'showAs': se_person
             }
 
-            se = SubElement(debate_section_4, 'speech', by='#'+se_person_slug)
+            se = SubElement(debate_section_4, 'speech', by='#'+se_person_slug,
+                            startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
             sef = SubElement(se, 'from')
             sef.text = unicode(se_person)
             sep = SubElement(se, 'p')
@@ -372,10 +378,15 @@ def scrape(url):
             link = session.cssselect('a')
             for item in get_items(link[0].get('href'), 'a'):
                 if is_pdf_attachment(unicode(item.get('href'))):
-                    # download_file(unicode(item.get('href')))
-                    # pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
-                    text_to_xml('text/'+os.path.splitext(unicode(os.path.basename(item.get('href'))))[0]+'.txt')
+                    download_file(unicode(item.get('href')))
+                    pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
+                    text_to_xml('text/'+os.path.splitext(unicode(os.path.basename(item.get('href'))))[0]+'.txt', unicode(item.get('href')))
 
-
+base_dir = '/home/notroot/sayit/sayit.mysociety.org'
 url = 'https://comision6senado.wordpress.com/category/actas/'
 scrape(url)
+
+for f in os.listdir('xml'):
+    if f.endswith('.xml'):
+        xmlpath = os.path.join(path, f)
+        call(base_dir+'/manage.py load_akomantoso --file='+xmlpath+' --instance=concejodemedellin --commit --merge-existing', shell=True)
