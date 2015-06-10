@@ -81,8 +81,10 @@ def clean_text(text):
     text = re.sub(r'\n(\w*)(.*)([0-9]*)/([0-9]*)(.*)(\w*)([0-9]*)/([0-9]*)(.*)(\w*)(.*)\n(.*)(\w*)(.*)', '', text)
     text = re.sub(r'\n(\w*)(.*)([0-9]*)-([0-9]*)/(\w*)(.*)([0-9]*)-([0-9]*)(.*)\n(.*)(\w*)(.*)\n(.*)(\w*)([0-9]*)-([0-9]*)', '', text)
     text = re.sub(r'\n(\w*)(.*)([0-9]*)-([0-9]*)/(\w*)(.*)([0-9]*)-([0-9]*)(.*)\n(.*)(\w*)(.*)', '', text)
-    text = re.sub(r'\f', '', text)
+    text = re.sub(r'Para la Sesión del (\S*)(\s*)([0-9]*)(\s*)de(\s*)(\S*)(\s*)de(\s*)([0-9]*)', '', text)
     text = re.sub(r'Página ([0-9]*)', '', text)
+    text = re.sub(r'\f', '', text)
+    text = re.sub(r': :', ':', text)
     text = re.sub(r'  ', ' ', text)
     text = re.sub(r'  ', ' ', text)
     text = re.sub(r'   ', ' ', text)
@@ -92,6 +94,11 @@ def clean_text(text):
     text = re.sub(r'III \n', '', text)
     text = re.sub(r'IV \n', '', text)
     text = re.sub(r'V \n', '', text)
+    text = re.sub(r'I\n', '', text)
+    text = re.sub(r'II\n', '', text)
+    text = re.sub(r'III\n', '', text)
+    text = re.sub(r'IV\n', '', text)
+    text = re.sub(r'V\n', '', text)
     text = re.sub(r'Llamada a lista.', '', text)
     text = re.sub(r'\n\n \n\n \n', '', text)
     text = re.sub(r'\n\n \n\n([0-9]*)', '', text)
@@ -114,6 +121,7 @@ def clean_text(text):
     # text = re.sub(r'  ', r'<br />', text)
     return text
 
+
 def clean_speakers(text):
 
     for i in PERSON_TITLES:
@@ -128,6 +136,7 @@ def clean_speakers(text):
 
     return text
 
+
 def clean_questions(text):
 
     text = re.sub(r'[ \.:\?] ([0-9]*)\.', r'\n\1.', text)
@@ -138,12 +147,13 @@ def clean_questions(text):
     text = re.sub(r'ANUNCIO para Discusión y Votación(.*)', r'', text, re.DOTALL|re.IGNORECASE)
     return text
 
-def is_valid_person(person):
 
+def is_valid_person(person):
     for i in ['Dr.', 'Dra.', 'H. S.']:
         if person.startswith(i):
             return True
     return False
+
 
 def text_to_xml(fname):
     print 'Convirtiendo TXT a XML '+fname
@@ -193,10 +203,11 @@ def text_to_xml(fname):
     questions = clean_questions(questions)
 
     f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.txt', 'w')
-    f.write(q_narrative+'\n---\n'+questions)
+    f.write(s_narrative+'\n---\n'+q_narrative+'\n---\n'+questions)
     f.close()
 
     flist = speech.decode('utf-8').split('\n')
+    qlist = questions.decode('utf-8').split('\n')
 
     akoman = Element('akomaNtoso')
     debate = SubElement(akoman, 'debate')
@@ -227,6 +238,19 @@ def text_to_xml(fname):
     heading_4 = SubElement(debate_section_4, 'heading')
     heading_4.text = unicode('ACTA No. '+acta)
 
+    nq = SubElement(debate_section_4, 'narrative')
+    nq.text = unicode(q_narrative.decode('utf-8'))
+
+    qss = SubElement(debate_section_4, 'questions')
+
+    for q in qlist:
+        if q:
+            if q[0].isdigit():
+                qs = SubElement(qss, 'question')
+                qs.text = unicode(q)
+            else:
+                qs = SubElement(qss, 'narrative')
+                qs.text = unicode(q)
 
     na = SubElement(debate_section_4, 'narrative')
     na.text = unicode(s_narrative.decode('utf-8'))
@@ -239,7 +263,7 @@ def text_to_xml(fname):
             PERSONS[se_person_slug] = {
                 'href': '/ontology/person/'+DOMAIN+'/'+se_person_slug,
                 'id': se_person_slug,
-                'showAs': se_person,
+                'showAs': se_person
             }
 
             se = SubElement(debate_section_4, 'speech', by='#'+se_person_slug)
@@ -253,9 +277,9 @@ def text_to_xml(fname):
 
     xml_content = xml.dom.minidom.parseString(tostring(akoman))
 
-    # f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.xml', 'w')
-    # f.write(xml_content.toprettyxml().encode('utf-8'))
-    # f.close()
+    f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.xml', 'w')
+    f.write(xml_content.toprettyxml().encode('utf-8'))
+    f.close()
 
 
 def get_items(url, selector):
@@ -335,27 +359,21 @@ def scrape(url):
 
     print 'Obteniendo páginas válidas ...'
 
-    # while True:
-    #     if get_status_code(url+'page/'+str(pages)) != 404:
-    #         print url+'page/'+str(pages)
-    #         validpages.append(url+'page/'+str(pages))
-    #         pages += 1
-    #     else:
-    #         break
-    validpages = [
-        'https://comision6senado.wordpress.com/category/actas/page/1',
-        'https://comision6senado.wordpress.com/category/actas/page/2'
-        ]
+    while True:
+        if get_status_code(url+'page/'+str(pages)) != 404:
+            print url+'page/'+str(pages)
+            validpages.append(url+'page/'+str(pages))
+            pages += 1
+        else:
+            break
 
     for page in validpages:
         for session in get_items(page, '.entry-title'):
             link = session.cssselect('a')
-
             for item in get_items(link[0].get('href'), 'a'):
-
                 if is_pdf_attachment(unicode(item.get('href'))):
-                    download_file(unicode(item.get('href')))
-                    pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
+                    # download_file(unicode(item.get('href')))
+                    # pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
                     text_to_xml('text/'+os.path.splitext(unicode(os.path.basename(item.get('href'))))[0]+'.txt')
 
 
