@@ -203,9 +203,9 @@ def text_to_xml(fname, url):
     questions = clean_text(questions)
     questions = clean_questions(questions)
 
-    f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.txt', 'w')
-    f.write(s_narrative+'\n---\n'+q_narrative+'\n---\n'+questions)
-    f.close()
+    # f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.txt', 'w')
+    # f.write(s_narrative+'\n---\n'+q_narrative+'\n---\n'+questions)
+    # f.close()
 
     flist = speech.decode('utf-8').split('\n')
     qlist = questions.decode('utf-8').split('\n')
@@ -383,8 +383,8 @@ def scrape(url):
                     text_to_xml('text/'+os.path.splitext(unicode(os.path.basename(item.get('href'))))[0]+'.txt', unicode(item.get('href')))
 
 base_dir = '/home/notroot/sayit/sayit.mysociety.org'
-# url = 'https://comision6senado.wordpress.com/category/actas/'
-# scrape(url)
+url = 'https://comision6senado.wordpress.com/category/actas/'
+scrape(url)
 
 xmldir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'xml')
 
