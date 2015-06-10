@@ -207,8 +207,8 @@ def text_to_xml(fname, url):
     # f.write(s_narrative+'\n---\n'+q_narrative+'\n---\n'+questions)
     # f.close()
 
-    flist = speech.decode('utf-8').split('\n')
-    qlist = questions.decode('utf-8').split('\n')
+    flist = filter(None, speech.decode('utf-8').split('\n'))
+    qlist = filter(None, questions.decode('utf-8').split('\n'))
 
     akoman = Element('akomaNtoso')
     debate = SubElement(akoman, 'debate')
@@ -221,20 +221,19 @@ def text_to_xml(fname, url):
     preface = SubElement(debate, 'preface')
     doctitle = SubElement(preface, 'docTitle')
     doctitle.text = unicode('ACTA No. '+acta)
-    # docdate = SubElement(preface, 'docDate', date=unicode(dateobject.strftime('%d-%m-%Y')))
     link = SubElement(preface, 'link', href=url)
 
     # DEBATE BODY
     debate_body = SubElement(debate, 'debateBody')
     debate_section_1 = SubElement(debate_body, 'debateSection')
     heading_1 = SubElement(debate_section_1, 'heading')
-    heading_1.text = unicode(dateobject.strftime('%Y'))
+    heading_1.text = unicode('Comisión Sexta Senado')
     debate_section_2 = SubElement(debate_section_1, 'debateSection')
     heading_2 = SubElement(debate_section_2, 'heading')
-    heading_2.text = unicode(dateobject.strftime('%m'))
+    heading_2.text = unicode(dateobject.strftime('%Y'))
     debate_section_3 = SubElement(debate_section_2, 'debateSection')
     heading_3 = SubElement(debate_section_3, 'heading')
-    heading_3.text = unicode(dateobject.strftime('%d-%m-%Y'))
+    heading_3.text = unicode(MONTHS[dateobject.strftime('%m')].title())
     debate_section_4 = SubElement(debate_section_3, 'debateSection')
     heading_4 = SubElement(debate_section_4, 'heading')
     heading_4.text = unicode('ACTA No. '+acta)
@@ -244,8 +243,7 @@ def text_to_xml(fname, url):
 
     if qlist:
         qss = SubElement(debate_section_4, 'questions')
-        qssds = SubElement(qss, 'debateSection')
-        qssh = SubElement(qssds, 'heading')
+        qssh = SubElement(qss, 'heading')
         qssh.text = 'CUESTIONARIO'
 
         for q in qlist:
@@ -378,17 +376,17 @@ def scrape(url):
             link = session.cssselect('a')
             for item in get_items(link[0].get('href'), 'a'):
                 if is_pdf_attachment(unicode(item.get('href'))):
-                    download_file(unicode(item.get('href')))
-                    pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
+                    # download_file(unicode(item.get('href')))
+                    # pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
                     text_to_xml('text/'+os.path.splitext(unicode(os.path.basename(item.get('href'))))[0]+'.txt', unicode(item.get('href')))
 
 base_dir = '/home/notroot/sayit/sayit.mysociety.org'
 url = 'https://comision6senado.wordpress.com/category/actas/'
 scrape(url)
 
-xmldir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'xml')
+# xmldir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'xml')
 
-for f in os.listdir(xmldir):
-    if f.endswith('.xml'):
-        xmlpath = os.path.join(xmldir, f)
-        call(base_dir+'/manage.py load_akomantoso --file='+xmlpath+' --instance=concejodemedellin --commit --merge-existing', shell=True)
+# for f in os.listdir(xmldir):
+#     if f.endswith('.xml'):
+#         xmlpath = os.path.join(xmldir, f)
+#         call(base_dir+'/manage.py load_akomantoso --file='+xmlpath+' --instance=concejodemedellin --commit --merge-existing', shell=True)
