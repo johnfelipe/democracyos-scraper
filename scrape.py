@@ -74,16 +74,23 @@ def _slugify(value):
     value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')
     value = unicode(_slugify_strip_re.sub('', value).strip().lower())
     return _slugify_hyphenate_re.sub('-', value)
-
+ 
     
 def clean_text(text):
-    text = re.sub(r'\n(\w*)(.*)([0-9]*)/([0-9]*)(.*)(\w*)(.*)([0-9]*)/([0-9]*)(.*)\n(\w*)(.*)([0-9]*)-([0-9]*)(.*)\n(.*)(\w*)(.*)', '', text)
-    text = re.sub(r'\n(\w*)(.*)([0-9]*)-([0-9]*)/(\w*)(.*)([0-9]*)-([0-9]*)(.*)\n(.*)\n(.*)(\w*)(.*)([0-9]*)-([0-9]*)', '', text)
-    text = re.sub(r'\n(\w*)(.*)([0-9]*)/([0-9]*)(.*)(\w*)([0-9]*)/([0-9]*)(.*)(\w*)(.*)\n(.*)(\w*)(.*)', '', text)
-    text = re.sub(r'\n(\w*)(.*)([0-9]*)-([0-9]*)/(\w*)(.*)([0-9]*)-([0-9]*)(.*)\n(.*)(\w*)(.*)\n(.*)(\w*)([0-9]*)-([0-9]*)', '', text)
-    text = re.sub(r'\n(\w*)(.*)([0-9]*)-([0-9]*)/(\w*)(.*)([0-9]*)-([0-9]*)(.*)\n(.*)(\w*)(.*)', '', text)
-    text = re.sub(r'Para la Sesión del (\S*)(\s*)([0-9]*)(\s*)de(\s*)(\S*)(\s*)de(\s*)([0-9]*)', '', text)
+    text = re.sub(r'\n(\s*)(.*)(\s*)\n(\s*)(.*)(\s*)/([0-9]*)(\s*)(.*)(\s*)([0-9]*)/([0-9]*)(.*)\n(\s*)(.*)(\s*)([0-9]*)-([0-9]*)', '', text)
+    text = re.sub(r'\n(\S*)(\s*)([0-9]*)/([0-9]*)(\s*)(\S*)(\s*)([0-9]*)/([0-9]*)(\s*)\n(\S*)(\s*)([0-9]*)-([0-9]*)(\s*)\n(\s*)(\S*)(\s*)', '', text)
+    text = re.sub(r'\n(\S*)(\s*)([0-9]*)-([0-9]*)/(\S*)(\s*)([0-9]*)-([0-9]*)(\s*)\n(\s*)\n(\s*)(\S*)(\s*)([0-9]*)-([0-9]*)', '', text)
+    text = re.sub(r'\n(\S*)(\s*)([0-9]*)/([0-9]*)(\s*)(\S*)([0-9]*)/([0-9]*)(\s*)(\S*)(\s*)\n(\s*)(\S*)(\s*)', '', text)
+    text = re.sub(r'\n(\S*)(\s*)([0-9]*)-([0-9]*)/(\S*)(\s*)([0-9]*)-([0-9]*)(\s*)\n(\s*)(\S*)(\s*)\n(\s*)(\S*)([0-9]*)-([0-9]*)', '', text)
+    text = re.sub(r'\n(\S*)(\s*)([0-9]*)-([0-9]*)/(\S*)(\s*)([0-9]*)-([0-9]*)(\s*)\n(.*)\n(\s*)(.*)(\s*)([0-9]*)-([0-9]*)(\s*)', '', text)
+    text = re.sub(r'\n(\S*)(\s*)([0-9]*)/([0-9]*)(\s*)(.*)(\s*)([0-9]*)/([0-9]*)(\s*)\n(\s*)(.*)(\s*)([0-9]*)-([0-9]*)(\s*)\n(.*)', '', text)
+    text = re.sub(r'\n(\S*)(\s*)([0-9]*)/([0-9]*)(\s*)(.*)(\s*)([0-9]*)/([0-9]*)(\s*)\n(\s*)(.*)(\s*)', '', text)
+    text = re.sub(r'\n(\S*)(\s*)([0-9]*)-([0-9]*)/(\S*)(\s*)([0-9]*)-([0-9]*)(\s*)\n(\s*)(.*)(\s*)([0-9]*)-([0-9]*)', '', text)
+    text = re.sub(r'\n(\s*)(.*)(\s*)/([0-9]*)(\s*)(.*)(\s*)([0-9]*)/([0-9]*)(\s*)\n(\s*)(.*)(\s*)/([0-9]*)-([0-9]*)', '', text)
+    text = re.sub(r'\n(\s*)(.*)(\s*)([0-9]*)/([0-9]*)(\s*)(.*)(\s*)([0-9]*)/([0-9]*)(.*)\n(\s*)(.*)(\s*)([0-9]*)-([0-9]*)', '', text)
+    text = re.sub(r'\n(\s*)(.*)(\s*)([0-9]*)-([0-9]*)/(.*)(\s*)([0-9]*)-([0-9]*)(.*)\n(\s*)(.*)(\s*)', '', text)
     text = re.sub(r'Página ([0-9]*)', '', text)
+    text = re.sub(r'Para la Sesión del (\S*)(\s*)([0-9]*)(\s*)de(\s*)(\S*)(\s*)de(\s*)([0-9]*)', '', text)
     text = re.sub(r'\f', '', text)
     text = re.sub(r': :', ':', text)
     text = re.sub(r'  ', ' ', text)
@@ -146,6 +153,10 @@ def clean_questions(text):
     text = re.sub(r'Presentada a consideración(.*)', r'', text, re.DOTALL|re.IGNORECASE)
     text = re.sub(r'Presentado por(.*)', r'', text, re.DOTALL|re.IGNORECASE)
     text = re.sub(r'ANUNCIO para Discusión y Votación(.*)', r'', text, re.DOTALL|re.IGNORECASE)
+    text = re.sub(r'ADITIVO A LA PROPOSICIÓN(.*)\n', r'', text, re.DOTALL|re.IGNORECASE)
+    text = re.sub(r'ANEXO A LA PROPOSICIÓN(.*)\n', r'', text, re.DOTALL|re.IGNORECASE)
+    text = re.sub(r'-Sr Presidente(.*)\n', r'', text, re.DOTALL|re.IGNORECASE)
+    text = re.sub(r'PROPUESTO SOBRE EL DEBATE(.*)\n', r'', text, re.DOTALL|re.IGNORECASE)
     return text
 
 
@@ -169,13 +180,24 @@ def text_to_xml(fname, url):
     dateobject = datetime.strptime(date_day+'-'+date_month+'-'+date_year, '%d-%m-%Y')
 
     # match = re.match(r'Presentada a consideración(.*)', fcontent, re.DOTALL)
-    
 
     match = re.match(r'^(.*)ACTA No\. ([0-9]*)(.*)', fcontent, re.DOTALL)
     acta = match.group(2)
     intro = match.group(3)
 
     match = re.match(r'^(.*)CUESTIONARIO(.*)', intro, re.DOTALL)
+
+    if not match:
+        match = re.match(r'(.*)cuestionario:(.*)', intro, re.DOTALL)
+
+    if not match:
+        match = re.match(r'(.*)Cuestionario al(.*)', intro, re.DOTALL)
+
+    if not match:
+        match = re.match(r'(.*)Cuestionario para(.*)', intro, re.DOTALL)
+
+    if not match:
+        match = re.match(r'(.*)cuestionario adjunto(.*)', intro, re.DOTALL)
 
     if match:
         narrative = match.group(1)
@@ -223,29 +245,29 @@ def text_to_xml(fname, url):
     # PREFACE
     preface = SubElement(debate, 'preface')
     doctitle = SubElement(preface, 'docTitle')
-    doctitle.text = unicode('ACTA No. '+acta)
+    doctitle.text = unicode('Comisión Sexta Senado'.decode('utf-8'))
     link = SubElement(preface, 'link', href=url)
 
     # DEBATE BODY
     debate_body = SubElement(debate, 'debateBody')
     debate_section_1 = SubElement(debate_body, 'debateSection')
     heading_1 = SubElement(debate_section_1, 'heading')
-    heading_1.text = unicode('Comisión Sexta Senado'.decode('utf-8'))
+    heading_1.text = unicode(dateobject.strftime('%Y'))
     debate_section_2 = SubElement(debate_section_1, 'debateSection')
     heading_2 = SubElement(debate_section_2, 'heading')
-    heading_2.text = unicode(dateobject.strftime('%Y'))
+    heading_2.text = unicode(MONTHS.keys()[MONTHS.values().index(dateobject.strftime('%m'))].title())
     debate_section_3 = SubElement(debate_section_2, 'debateSection')
     heading_3 = SubElement(debate_section_3, 'heading')
-    heading_3.text = unicode(MONTHS.keys()[MONTHS.values().index(dateobject.strftime('%m'))].title())
-    debate_section_4 = SubElement(debate_section_3, 'debateSection')
-    heading_4 = SubElement(debate_section_4, 'heading')
-    heading_4.text = unicode('ACTA No. '+acta)
+    heading_3.text = unicode('ACTA No. '+acta+' / '+dateobject.strftime('%Y'))
 
-    nq = SubElement(debate_section_4, 'narrative')
-    nq.text = unicode(q_narrative.decode('utf-8'))
+    nq = SubElement(debate_section_3, 'speech', by='', startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
+    sef = SubElement(nq, 'from')
+    sef.text = unicode('OTROS')
+    sep = SubElement(nq, 'p')
+    sep.text = unicode(q_narrative.decode('utf-8'))
 
     if qlist:
-        qss = SubElement(debate_section_4, 'questions')
+        qss = SubElement(debate_section_3, 'questions')
         qssh = SubElement(qss, 'heading')
         qssh.text = 'CUESTIONARIO'
 
@@ -258,8 +280,11 @@ def text_to_xml(fname, url):
                     qs = SubElement(qss, 'narrative')
                     qs.text = unicode(q)
 
-    na = SubElement(debate_section_4, 'narrative')
-    na.text = unicode(s_narrative.decode('utf-8'))
+    na = SubElement(debate_section_3, 'narrative')
+    sef = SubElement(na, 'from')
+    sef.text = unicode('OTROS')
+    sep = SubElement(na, 'p')
+    sep.text = unicode(s_narrative.decode('utf-8'))
 
     for j in flist:
         se_person = j.split(':')[0]
@@ -272,7 +297,7 @@ def text_to_xml(fname, url):
                 'showAs': se_person
             }
 
-            se = SubElement(debate_section_4, 'speech', by='#'+se_person_slug,
+            se = SubElement(debate_section_3, 'speech', by='#'+se_person_slug,
                             startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
             sef = SubElement(se, 'from')
             sef.text = unicode(se_person)
