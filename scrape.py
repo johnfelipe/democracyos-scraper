@@ -37,6 +37,7 @@ _months = {
 _slugify_strip_re = re.compile(r'[^\w\s-]')
 _slugify_hyphenate_re = re.compile(r'[-\s]+')
 _remove_paragraphs_re = [
+    [r'\S*\s*\S*\s*\n\S*\s*\d*\s*/\d*\s*(-|–)*\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*\d*-\d*\s*\n\S*.*', r''],
     [r'\S*\s*\d*\s*/\d*\s*(-|–)*\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*\d*-\d*\s*\n\S*.*', r''],
     [r'\S*\s*\d*/\d*\s*(-|–)*\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*\d*-\d*\s*\n\S*.*', r''],
     [r'\S*\s*\d*-\d*\s*/\s*\S*\s*\d*-\d*\s*\n\S*.*\n\S*.*', r''],
@@ -59,7 +60,7 @@ _remove_paragraphs_re = [
     [r'\nVI\s{0,1}\n', r''],
     [r'\n\s{0,1}\d{1,2}\s{0,1}\n', r''],
     [r'([\*]*)', ''],
-    [r'^\.\n', ''],
+    [r'^\.\s{0,1}\n', ''],
     [r'\f', r''],
     [r'“', '"'],
     [r'”', '"'],
@@ -71,69 +72,44 @@ _remove_paragraphs_re = [
     [r'\s{2,}', ' '],
     [r':\.', ':'],
     [r'(?<!A LA )PROPOSICIÓN\s*No\.\s*(\d*)/(\d*)\s*', r'PROPOSICIÓN No. \1/\2. '],
-    [r'(\d)\.\-', r'######\1.-'],
-    [r'(?<!Dr)(?<!DR)(?<!Dra)(?<!DRA)(?<!No)(?<!NO)(?<!Sr)(?<!SR)(?<!Sra)(?<!SRA)(?<! D)(?<! H)(?<! S)(?<!-H)\.\s', r'.######'],
 ]
 _speech_re = [
+    [r'(\d)\.\-', r'######\1.-'],
+    [r'(?<!Dr)(?<!DR)(?<!Dra)(?<!DRA)(?<!No)(?<!NO)(?<!Sr)(?<!SR)(?<!Sra)(?<!SRA)(?<! D)(?<! H)(?<! S)(?<!-H)\.\s', r'.######'],
+    [r'\s(?<!#)(?<!-)H\. S\.', r'.######H. S.'],
+    [r'La\s*Secretaria\s*(–|-|,)\s*Dra\.', 'Secretaria-Dra.'],
+    [r'######La\s*Secretaria\s*:', '######Secretaria:'],
+    [r'(El|La){0,1}\s*(Presidente|Presidenta)\s*(–|-|,)\s*H\.\s*S\.', 'Presidente-H. S.'],
+    [r'######(El|La){0,1}\s*(Presidente|Presidenta)\s*:', '######Presidente:'],
+    [r'\s*(?<!#)(Presidente|Presidenta|Secretaria)(:|-)', r'.######\1\2'],
+    [r'Presidente-([^:]*?),*\s(solicita|declara)', r'Presidente-\1: \2'],
+    [r'Secretaria-([^:]*?),*\s(realiza)', r'Secretaria-\1: \2'],
     [r'\sH\.\sS\.([^#]*?):', r'.######H. S.\1:'],
-    [r'######((H\. S\.|Dra\.|Dr\.|Sr\.|Sra\.)[^#]*?):', r'\n\1:'],
+    [r'######((H\. S\.|Dra\.|Dr\.|Sr\.|Sra\.|Srta\.)[^#]*?):', r'######\1:'],
+    [r'EUGENIO PRIETO SOTO Presidente Vicepresidente JORGE ELIECER GUEVARA SANDRA OVALLE GARCÍA Secretaria General', r''],
+    [r'EUGENIO PRIETO SOTO Presidente Vicepresidente JORGE ELIECER GUEVARA SANDRA OVALLE GARCÍA', r''],
+    [r'EUGENIO PRIETO SOTO Presidente JORGE ELIECER GUEVARA Vicepresidente SANDRA OVALLE GARCÍA Secretaria General', r''],
+    [r'EUGENIO PRIETO SOTO Presidente JORGE ELIECER GUEVARA Vicepresidente SANDRA OVALLE GARCÍA', r''],
+    [r'EUGENIO PRIETO SOTO JORGE ELIECER GUEVARA Presidente Vicepresidente SANDRA OVALLE GARCÍA Secretaria General', r''],
+    [r'EUGENIO PRIETO SOTO JORGE ELIECER GUEVARA Presidente Vicepresidente SANDRA OVALLE GARCÍA', r''],
+    [r'EUGENIO PRIETO SOTO JORGE ELIECER GUEVARA SANDRA OVALLE', r''],
 ]
-_questions_re = [
+_cuestionario_re = [
     r'^(.*)\ncuestionario\s*?(:|al|para|adjunto|\n|ADITIVO A LA PROPOSICIÓN|ANEXO A LA PROPOSICIÓN)(.*)$',
     r'^(.*)siguiente\s*cuestionario\s*?(:|al|para|adjunto|\n|ADITIVO A LA PROPOSICIÓN|ANEXO A LA PROPOSICIÓN)(.*)$',
     r'^(.*)ADICIÓNESE\s*A\s*LA\s*PROPOSICIÓN(.*)EL\s*CUESTIONARIO(.*)$',
     r'^(.*)cuestionario(\s*)adjunto(.*)$'
 ]
+_questions_re = [
+    [r'(?<!\.)(?<!\$)\s(\d{1,2})\.(?!\d)', r'. \1.'],
+    [r'\.\s(\d{1,2})\.\-', r'. \1.'],
+    [r'\.\s(\d{1,2})\.', r'.######\1.'],
+    [r':\.######(\d)\.\s', r':######\1. '],
+    [r'', r'Para el'],
+    [r'(?<!\.)\sPara el', r'. Para el'],
+    [r'\.\sPara el', r'.######Para el'],
+]
 
-# _fix_questions_re = [
-#     [r'[ \.:\?] ([0-9]*)\.', r'\n\1.'],
-#     [r'  ', r'\n'],
-#     [r'\n\. ', r'. '],
-#     [r'Presentada a consideración(.*)', r''],
-#     [r'Presentado por(.*)', r''],
-#     [r'ANUNCIO para Discusión y Votación(.*)', r''],
-#     [r'ADITIVO A LA PROPOSICIÓN(.*)\n', r''],
-#     [r'ANEXO A LA PROPOSICIÓN(.*)\n', r''],
-#     [r'-Sr Presidente(.*)\n', r''],
-#     [r'PROPUESTO SOBRE EL DEBATE(.*)\n', r'']
-# ]
-# _fix_details_re = [
-#     [r'“', '"'],
-#     [r'”', '"'],
-#     [r'\f', ''],
-#     [r': :', ':'],
-#     [r'  ', ' '],
-#     [r'  ', ' '],
-#     [r'   ', ' '],
-#     [r'    ', ' '],
-#     [r'([\*]*)', ''],
-#     [r' – ', '-'],
-#     [r'– ', '-'],
-#     [r' –', '-'],
-#     [r' - ', '-'],
-#     [r'- ', '-'],
-#     [r' -', '-'],
-#     [r'-\n', '-'],
-#     [r'  \n', ' '],
-#     [r' \n', ' '],
-#     [r' \n', ' '],
-#     [r'H\.S\. ', r'H. S. '],
-#     [r'H\. S ', r'H. S. '],
-#     [r'^\s*\n*', '']
-# ]
-_default_presidente = 'H. S. Eugenio Prieto Soto'
-_default_secretaria = 'Dra. Sandra Ovalle García'
-_common_titles_list = [
-    ['Presidente', 'El Presidente'],
-    ['Presidenta', 'La Presidenta'],
-    ['Secretaria', 'La Secretaria']
-]
-_titles_list = [
-    ['Dr. Diego Molano Vega', 'Ministro de TIC', 'Ministro de Tecnologías de la Información y las Comunicaciones'],
-    ['Dr. Carlos Pablo Márquez', 'CRC', 'Director Ejecutivo Comisión De Regulación De Comunicaciones \(CRC\)'],
-    ['Dr. Julián Cardona Castro', 'ACIEM', 'Presidente de ACIEM \(Asociación Colombiana de Ingenieros\)']
-    # Presidente de Asomóvil-Dr. Rodrigo Lara Restrepo
-]
 
 class CustomHTTPRedirectHandler(urllib2.HTTPRedirectHandler):
     def http_error_302(self, req, fp, code, msg, headers):
@@ -167,7 +143,7 @@ def _slugify(value):
 
 
 def is_valid_person(person):
-    for i in ['Dr.', 'Dra.', 'H. S.']:
+    for i in ['Dr.', 'Dra.', 'Sr.', 'Sra.', 'H. S.']:
         if person.startswith(i):
             return True
     return False
@@ -176,20 +152,6 @@ def is_valid_person(person):
 def get_narratives(text):
     match = re.search(r'^(.*)ORDEN\s*DEL\s*D(Í|I)A(.*)$', text, flags=re.S)
     return (match.group(1), match.group(3))
-
-
-def get_presidente(text):
-    match = re.search(r'Presidente-(.*?)(:|,|solicita)', text, flags=re.S|re.I)
-    if not match:
-        return _default_presidente
-    return match.group(1)
-
-
-def get_secretaria(text):
-    match = re.search(r'Secretaria-(.*?)(:|,|realiza)', text, flags=re.S|re.I)
-    if not match:
-        return _default_secretaria
-    return match.group(1)
 
 
 def get_date_object(text):
@@ -203,10 +165,10 @@ def get_acta_intro(text):
 
 
 def get_questions_match(text):
-    return (re.search(_questions_re[0], text, flags=re.S|re.I)
-            or re.search(_questions_re[1], text, flags=re.S|re.I)
-            or re.search(_questions_re[2], text, flags=re.S|re.I)
-            or re.search(_questions_re[3], text, flags=re.S|re.I))
+    return (re.search(_cuestionario_re[0], text, flags=re.S|re.I)
+            or re.search(_cuestionario_re[1], text, flags=re.S|re.I)
+            or re.search(_cuestionario_re[2], text, flags=re.S|re.I)
+            or re.search(_cuestionario_re[3], text, flags=re.S|re.I))
 
 
 def get_narrative_questions_speech(text):
@@ -247,39 +209,84 @@ def process_narratives(text):
     return text.strip()
 
 def process_speech(text):
-    for r, f in _remove_paragraphs_re:
+    for r, f in _remove_paragraphs_re+_speech_re:
         text = re.sub(r, f, text)
 
-    for i in _titles_list:
-        text = re.sub(i[0]+', '+i[1]+':', i[0]+':', text)
-        text = re.sub(i[2]+'-'+i[0]+':', i[0]+':', text)
-        text = re.sub(i[1]+'-'+i[0]+':', i[0]+':', text)
-        text = re.sub(i[0]+'[^:]', i[0]+': ', text)
-        text = re.sub(i[1]+':', i[0]+':', text)
+    text = text.strip()
+    text = text.split('Presidente-')
 
-    for i in _common_titles_list:
-        text = re.sub(i[0]+'\s*(–|-|,)\s*H\.\s*S\.', i[0]+'-H. S.', text)
-        text = re.sub(i[1]+'\s*(–|-|,)\s*H\.\s*S\.', i[0]+'-H. S.', text)
+    for i, p in enumerate(text):
+        if i != 0:
+            presidente = text[i].split(':')[0]
+            text[i] = re.sub('######Presidente:', '######'+presidente+':', text[i])
+
+    text = ''.join(text)
+    text = text.split('Secretaria-')
+
+    for i, s in enumerate(text):
+        if i != 0:
+            secretaria = text[i].split(':')[0]
+            text[i] = re.sub('######Secretaria:', '######'+secretaria+':', text[i])
+
+    text = ''.join(text)
+
+    important = re.findall('######([^:#,]*?)-([^:#,]*?):', text)
+
+    _persons_titles = []
+    for t, p in important:
+        if (p == 'Madre Comunitaria' or
+            p == 'Investigadora Instituto Latinoamericano de Servicios Legales Alternativos (ILSA)' or
+            p == 'Miembro Junta Directiva de la Autoridad Nacional de Televisión (ANTV)' or
+            p == 'Miembro Junta Directiva de la ANTV' or
+            p == 'Miembro Junta Directiva ANTV'):
+            _persons_titles.append([p.replace('(', '\(').replace(')', '\)'), t])
+        elif (p == '(Cundinamarca)' or
+            p == 'fondo del Gobierno Nacional Municipio de' or
+            p == 'La cultura es prosperidad para todos." Ministra de Cultura' or
+            p == 'Yo me quiero otra vez referir a la sentencia C' or
+            p == 'Sigue allí la Malla Vial del Valle y sigue la vía Buga' or
+            p == 'Otro de los corredores importantes es el corredor Bogotá'):
+            pass
+        else:
+            _persons_titles.append([t.replace('(', '\(').replace(')', '\)'), p])
+
+    for t, p in _persons_titles:
+        text = re.sub(t+'-'+p+':', p+':', text)
+        text = re.sub(p+', '+t+':', p+':', text)
+        text = re.sub(p+'[^:]', p+': ', text)
+        text = re.sub(t+':', p+':', text)
+
+    text = re.sub(r'######((H\. S\.|Dra\.|Dr\.|Sr\.|Sra\.|Srta\.)[^#]*?):', r'\n\1:', text, flags=re.S)
+    return re.sub(r'\n(Sr|Sra)\.([^:]*?)(;|,)', r'\n\1:', text, flags=re.S)
+
+
+def process_questions(text):
+    for r, f in _remove_paragraphs_re+_questions_re:
+        text = re.sub(r, f, text)
 
     text = text.strip()
-    presidente = get_presidente(text)
-    secretaria = get_secretaria(text)
 
-    _important_titles_list = [
-        [presidente, 'Presidente', 'El Presidente'],
-        [secretaria, 'Secretaria', 'La Secretaria'],
-    ]
-    for i in _important_titles_list+_titles_list:
-        text = re.sub(i[0]+', '+i[1]+':', i[0]+':', text)
-        text = re.sub(i[2]+'-'+i[0]+':', i[0]+':', text)
-        text = re.sub(i[1]+'-'+i[0]+':', i[0]+':', text)
-        # text = re.sub(i[0]+'[^:]', i[0]+': ', text)
-        # text = re.sub(i[1]+':', i[0]+':', text)
+    match = (re.search('(Presentada a consideración)(.*?\.)', text) or
+             re.search('(Presentado por)(.*?\.)', text))
 
-    # for r, f in _speech_re:
-    #     text = re.sub(r, f, text)
+    speaker = ''
 
-    return text
+    if match:
+        match = re.search(r'Honorable(s)*\s*Senador(es)*(.*?)(;|,|\.|\sy)', match.group(2))
+        speaker = match.group(3).strip().title().split()
+
+        if len(speaker) > 1:
+            speaker = ' '.join(speaker)
+        else:
+            speaker = ''
+
+    if not speaker:
+        speaker = 'Eugenio Prieto Soto'
+
+    text = re.sub(r'(.*)(Presentada a consideración|Presentado por).*', r'\1', text, flags=re.S)
+    text = re.sub(r'\.######(\d{1,2})\.\s', r'.\n\1. ', text, flags=re.S)
+    text = re.sub(r'######', r'\n', text, flags=re.S|re.M)
+    return (text, 'H. S. '+speaker)
 
 
 def text_to_xml(fname, url):
@@ -294,101 +301,102 @@ def text_to_xml(fname, url):
     q_narrative, s_narrative = get_narratives(narrative)
 
     speech = process_speech(speech)
-    # questions = clean_questions(clean_text(questions))
-
+    questions, questioner = process_questions(questions)
     q_narrative = process_narratives(q_narrative)
     s_narrative = process_narratives(s_narrative)
 
-    f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.txt', 'w')
-    f.write(speech)
+    flist = filter(None, speech.decode('utf-8').split('\n'))
+    qlist = filter(None, questions.decode('utf-8').split('\n'))
+
+    akoman = Element('akomaNtoso')
+    debate = SubElement(akoman, 'debate')
+
+    # META
+    meta = SubElement(debate, 'meta')
+    references = SubElement(meta, 'references')
+
+    # PREFACE
+    preface = SubElement(debate, 'preface')
+    doctitle = SubElement(preface, 'docTitle')
+    doctitle.text = unicode('Comisión Sexta Senado'.decode('utf-8'))
+    link = SubElement(preface, 'link', href=url)
+
+    # DEBATE BODY
+    debate_body = SubElement(debate, 'debateBody')
+    debate_section_1 = SubElement(debate_body, 'debateSection')
+    heading_1 = SubElement(debate_section_1, 'heading')
+    heading_1.text = unicode(dateobject.strftime('%Y'))
+    debate_section_2 = SubElement(debate_section_1, 'debateSection')
+    heading_2 = SubElement(debate_section_2, 'heading')
+    heading_2.text = unicode(_months.keys()[_months.values().index(dateobject.strftime('%m'))].title())
+    debate_section_3 = SubElement(debate_section_2, 'debateSection')
+    heading_3 = SubElement(debate_section_3, 'heading')
+    heading_3.text = unicode('ACTA No. '+acta+' / '+dateobject.strftime('%d-%m-%Y'))
+
+    nq = SubElement(debate_section_3, 'speech', by='', startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
+    sef = SubElement(nq, 'from')
+    sef.text = unicode('OTROS')
+    sep = SubElement(nq, 'p')
+    sep.text = unicode(q_narrative.decode('utf-8').strip())
+
+    if qlist:
+        qss = SubElement(debate_section_3, 'questions')
+        qssh = SubElement(qss, 'heading')
+        qssh.text = 'CUESTIONARIO'
+
+        for q in qlist:
+            if q and q != '.':
+                if q[0].isdigit():
+                    qs = SubElement(qss, 'question', by='#'+_slugify(questioner))
+                    qs.text = unicode(q.strip())
+                else:
+                    qs = SubElement(qss, 'narrative')
+                    qs.text = unicode(q.strip())
+
+    na = SubElement(debate_section_3, 'speech', by='', startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
+    sef = SubElement(na, 'from')
+    sef.text = unicode('OTROS')
+    sep = SubElement(na, 'p')
+    sep.text = unicode(s_narrative.decode('utf-8').strip())
+
+    for j in flist:
+        se_person = j.split(':')[0]
+        se_person_slug = _slugify(se_person)
+
+        if se_person_slug and is_valid_person(se_person):
+            _persons[se_person_slug] = {
+                'href': '/ontology/person/'+_domain+'/'+se_person_slug,
+                'id': se_person_slug,
+                'showAs': se_person
+            }
+
+            se = SubElement(debate_section_3, 'speech', by='#'+se_person_slug,
+                            startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
+            sef = SubElement(se, 'from')
+            sef.text = unicode(se_person.strip())
+            sep = SubElement(se, 'p')
+
+            for i, br in enumerate(j[len(se_person+':'):].split('######')):
+                if i == 0:
+                    sep.text = br.strip()
+                else:
+                    sebr = SubElement(sep, 'br')
+                    sebr.tail = br.strip()
+
+    for key, value in _persons.iteritems():
+        se_person_tag = SubElement(references, 'TLCPerson', **value)
+
+    xml_content = xml.dom.minidom.parseString(tostring(akoman))
+
+    f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.xml', 'w')
+    f.write(xml_content.toprettyxml().encode('utf-8'))
     f.close()
 
-    # flist = filter(None, speech.decode('utf-8').split('\n'))
-    # qlist = filter(None, questions.decode('utf-8').split('\n'))
 
-    # akoman = Element('akomaNtoso')
-    # debate = SubElement(akoman, 'debate')
-
-    # # META
-    # meta = SubElement(debate, 'meta')
-    # references = SubElement(meta, 'references')
-
-    # # PREFACE
-    # preface = SubElement(debate, 'preface')
-    # doctitle = SubElement(preface, 'docTitle')
-    # doctitle.text = unicode('Comisión Sexta Senado'.decode('utf-8'))
-    # link = SubElement(preface, 'link', href=url)
-
-    # # DEBATE BODY
-    # debate_body = SubElement(debate, 'debateBody')
-    # debate_section_1 = SubElement(debate_body, 'debateSection')
-    # heading_1 = SubElement(debate_section_1, 'heading')
-    # heading_1.text = unicode(dateobject.strftime('%Y'))
-    # debate_section_2 = SubElement(debate_section_1, 'debateSection')
-    # heading_2 = SubElement(debate_section_2, 'heading')
-    # heading_2.text = unicode(_months.keys()[_months.values().index(dateobject.strftime('%m'))].title())
-    # debate_section_3 = SubElement(debate_section_2, 'debateSection')
-    # heading_3 = SubElement(debate_section_3, 'heading')
-    # heading_3.text = unicode('ACTA No. '+acta+' / '+dateobject.strftime('%d-%m-%Y'))
-
-    # nq = SubElement(debate_section_3, 'speech', by='', startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
-    # sef = SubElement(nq, 'from')
-    # sef.text = unicode('OTROS')
-    # sep = SubElement(nq, 'p')
-    # sep.text = unicode(q_narrative.decode('utf-8'))
-
-    # if qlist:
-    #     qss = SubElement(debate_section_3, 'questions')
-    #     qssh = SubElement(qss, 'heading')
-    #     qssh.text = 'CUESTIONARIO'
-
-    #     for q in qlist:
-    #         if q:
-    #             if q[0].isdigit():
-    #                 qs = SubElement(qss, 'question')
-    #                 qs.text = unicode(q)
-    #             else:
-    #                 qs = SubElement(qss, 'narrative')
-    #                 qs.text = unicode(q)
-
-    # na = SubElement(debate_section_3, 'speech', by='', startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
-    # sef = SubElement(na, 'from')
-    # sef.text = unicode('OTROS')
-    # sep = SubElement(na, 'p')
-    # sep.text = unicode(s_narrative.decode('utf-8'))
-
-    # for j in flist:
-    #     se_person = j.split(':')[0]
-    #     se_person_slug = _slugify(se_person)
-
-    #     if is_valid_person(se_person) and se_person_slug:
-    #         _persons[se_person_slug] = {
-    #             'href': '/ontology/person/'+_domain+'/'+se_person_slug,
-    #             'id': se_person_slug,
-    #             'showAs': se_person
-    #         }
-
-    #         se = SubElement(debate_section_3, 'speech', by='#'+se_person_slug,
-    #                         startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
-    #         sef = SubElement(se, 'from')
-    #         sef.text = unicode(se_person)
-    #         sep = SubElement(se, 'p')
-    #         sep.text = unicode(j[len(se_person+':'):])
-
-    # for key, value in _persons.iteritems():
-    #     se_person_tag = SubElement(references, 'TLCPerson', **value)
-
-    # xml_content = xml.dom.minidom.parseString(tostring(akoman))
-
-    # f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.xml', 'w')
-    # f.write(xml_content.toprettyxml().encode('utf-8'))
-    # f.close()
-
-
-def get_items(url, selector):
-    req = urllib2.Request(url)
-    response = urllib2.urlopen(req)
-    body = response.read()
+def get_selectors(html, selector):
+    file = open(html)
+    body = file.read()
+    file.close()
     doc = lxml.html.document_fromstring(body)
     sessions = doc.cssselect(selector)
     return sessions
@@ -419,13 +427,13 @@ def is_pdf_attachment(url):
     return False
 
 
-def download_file(url):
+def download_file(url, dest):
     print 'Descargando '+url
 
     parse_object = urlparse(url)
     response = urllib2.urlopen(url)
 
-    file = open('pdf/'+os.path.basename(parse_object.path), 'w')
+    file = open(dest+'/'+os.path.basename(parse_object.path)+'.'+dest, 'w')
     file.write(response.read())
     file.close()
 
@@ -476,13 +484,23 @@ def scrape(url):
     ]
 
     for page in validpages:
-        for session in get_items(page, '.entry-title'):
-            link = session.cssselect('a')
-            for item in get_items(link[0].get('href'), 'a'):
-                if is_pdf_attachment(unicode(item.get('href'))):
-                    # download_file(unicode(item.get('href')))
-                    # pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
-                    text_to_xml('text/'+os.path.splitext(unicode(os.path.basename(item.get('href'))))[0]+'.txt', unicode(item.get('href')))
+
+        page = page.strip('/')
+        pagename = os.path.basename(page)
+        # download_file(page, 'html')
+
+        for session in get_selectors('html/'+pagename+'.html', '.entry-title'):
+
+            link = session.cssselect('a')[0].get('href').strip('/')
+            linkname = os.path.basename(link)
+            # download_file(link, 'html')
+
+            for item in get_selectors('html/'+linkname+'.html', 'a'):
+                if item.get('href'):
+                    if is_pdf_attachment(item.get('href')):
+                        # download_file(unicode(item.get('href')), 'pdf')
+                        # pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
+                        text_to_xml('text/'+os.path.splitext(unicode(os.path.basename(item.get('href'))))[0]+'.txt', unicode(item.get('href')))
 
 
 base_dir = '/home/notroot/sayit/sayit.mysociety.org'

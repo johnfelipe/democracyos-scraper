@@ -1,4 +1,5 @@
 virtualenv
+*.html
 *.xml
 *.pdf
 *.txt
