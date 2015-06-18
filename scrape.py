@@ -1,9 +1,6 @@
 #!/usr/bin/python2.7
 # -*- coding: utf-8 -*-
 
-# TODO:
-# Múltiples presidentes en un mismo pdf
-
 import sys, os, re, lxml.html, lxml.etree, urllib2
 import xml.dom.minidom
 from xml.etree.ElementTree import Element, SubElement, tostring, parse
@@ -470,36 +467,31 @@ def scrape(url):
 
     print 'Obteniendo páginas válidas ...'
 
-    # while True:
-    #     if get_status_code(url+'page/'+str(pages)) != 404:
-    #         print url+'page/'+str(pages)
-    #         validpages.append(url+'page/'+str(pages))
-    #         pages += 1
-    #     else:
-    #         break
-
-    validpages = [
-        'https://comision6senado.wordpress.com/category/actas/page/1',
-        'https://comision6senado.wordpress.com/category/actas/page/2'
-    ]
+    while True:
+        if get_status_code(url+'page/'+str(pages)) != 404:
+            print url+'page/'+str(pages)
+            validpages.append(url+'page/'+str(pages))
+            pages += 1
+        else:
+            break
 
     for page in validpages:
 
         page = page.strip('/')
         pagename = os.path.basename(page)
-        # download_file(page, 'html')
+        download_file(page, 'html')
 
         for session in get_selectors('html/'+pagename+'.html', '.entry-title'):
 
             link = session.cssselect('a')[0].get('href').strip('/')
             linkname = os.path.basename(link)
-            # download_file(link, 'html')
+            download_file(link, 'html')
 
             for item in get_selectors('html/'+linkname+'.html', 'a'):
                 if item.get('href'):
                     if is_pdf_attachment(item.get('href')):
-                        # download_file(unicode(item.get('href')), 'pdf')
-                        # pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
+                        download_file(unicode(item.get('href')), 'pdf')
+                        pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
                         text_to_xml('text/'+os.path.splitext(unicode(os.path.basename(item.get('href'))))[0]+'.txt', unicode(item.get('href')))
 
 
@@ -507,9 +499,9 @@ base_dir = '/home/notroot/sayit/sayit.mysociety.org'
 url = 'https://comision6senado.wordpress.com/category/actas/'
 scrape(url)
 
-# xmldir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'xml')
+xmldir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'xml')
 
-# for f in os.listdir(xmldir):
-#     if f.endswith('.xml'):
-#         xmlpath = os.path.join(xmldir, f)
-#         call(base_dir+'/manage.py load_akomantoso --file='+xmlpath+' --instance=concejodemedellin --commit --merge-existing', shell=True)
+for f in os.listdir(xmldir):
+    if f.endswith('.xml'):
+        xmlpath = os.path.join(xmldir, f)
+        call(base_dir+'/manage.py load_akomantoso --file='+xmlpath+' --instance=concejodemedellin --commit --merge-existing', shell=True)
