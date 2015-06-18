@@ -435,6 +435,17 @@ def download_file(url, dest):
     file.close()
 
 
+def download_pdf(url):
+    print 'Descargando '+url
+
+    parse_object = urlparse(url)
+    response = urllib2.urlopen(url)
+
+    file = open('pdf/'+os.path.basename(parse_object.path), 'w')
+    file.write(response.read())
+    file.close()
+
+
 def pdf_to_text(fname):
     print 'Convirtiendo '+fname
 
@@ -490,18 +501,19 @@ def scrape(url):
             for item in get_selectors('html/'+linkname+'.html', 'a'):
                 if item.get('href'):
                     if is_pdf_attachment(item.get('href')):
-                        download_file(unicode(item.get('href')), 'pdf')
-                        pdf_to_text('pdf/'+unicode(os.path.basename(item.get('href'))))
-                        text_to_xml('text/'+os.path.splitext(unicode(os.path.basename(item.get('href'))))[0]+'.txt', unicode(item.get('href')))
+                        download_pdf(item.get('href'))
+                        pdf_to_text('pdf/'+os.path.basename(item.get('href')))
+                        text_to_xml('text/'+os.path.splitext(os.path.basename(item.get('href')))[0]+'.txt', unicode(item.get('href')))
 
+if __name__ == "__main__":
 
-base_dir = '/home/notroot/sayit/sayit.mysociety.org'
-url = 'https://comision6senado.wordpress.com/category/actas/'
-scrape(url)
+    base_dir = '/home/notroot/sayit/sayit.mysociety.org'
+    url = 'https://comision6senado.wordpress.com/category/actas/'
+    scrape(url)
 
-xmldir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'xml')
+    xmldir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'xml')
 
-for f in os.listdir(xmldir):
-    if f.endswith('.xml'):
-        xmlpath = os.path.join(xmldir, f)
-        call(base_dir+'/manage.py load_akomantoso --file='+xmlpath+' --instance=concejodemedellin --commit --merge-existing', shell=True)
+    for f in os.listdir(xmldir):
+        if f.endswith('.xml'):
+            xmlpath = os.path.join(xmldir, f)
+            call(base_dir+'/manage.py load_akomantoso --file='+xmlpath+' --instance='+_domain.split('.')[0]+' --commit --merge-existing', shell=True)
