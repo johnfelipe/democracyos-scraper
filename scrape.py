@@ -313,97 +313,93 @@ def text_to_xml(fname, url):
     q_narrative = process_narratives(q_narrative)
     s_narrative = process_narratives(s_narrative)
 
-    f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.txt', 'w')
-    f.write(speech)
+    flist = filter(None, speech.decode('utf-8').split('\n'))
+    qlist = filter(None, questions.decode('utf-8').split('\n'))
+
+    akoman = Element('akomaNtoso')
+    debate = SubElement(akoman, 'debate')
+
+    # META
+    meta = SubElement(debate, 'meta')
+    references = SubElement(meta, 'references')
+
+    # PREFACE
+    preface = SubElement(debate, 'preface')
+    doctitle = SubElement(preface, 'docTitle')
+    doctitle.text = unicode('Comisión Sexta Senado'.decode('utf-8'))
+    link = SubElement(preface, 'link', href=url)
+
+    # DEBATE BODY
+    debate_body = SubElement(debate, 'debateBody')
+    debate_section_1 = SubElement(debate_body, 'debateSection')
+    heading_1 = SubElement(debate_section_1, 'heading')
+    heading_1.text = unicode(dateobject.strftime('%Y'))
+    debate_section_2 = SubElement(debate_section_1, 'debateSection')
+    heading_2 = SubElement(debate_section_2, 'heading')
+    heading_2.text = unicode(_months.keys()[_months.values().index(dateobject.strftime('%m'))].title())
+    debate_section_3 = SubElement(debate_section_2, 'debateSection')
+    heading_3 = SubElement(debate_section_3, 'heading')
+    heading_3.text = unicode('ACTA No. '+acta+' / '+dateobject.strftime('%d-%m-%Y'))
+
+    nq = SubElement(debate_section_3, 'speech', by='', startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
+    sef = SubElement(nq, 'from')
+    sef.text = unicode('OTROS')
+    sep = SubElement(nq, 'p')
+    sep.text = unicode(q_narrative.decode('utf-8').strip())
+
+    if qlist:
+        qss = SubElement(debate_section_3, 'questions')
+        qssh = SubElement(qss, 'heading')
+        qssh.text = 'CUESTIONARIO'
+
+        for q in qlist:
+            if q and q != '.':
+                if q[0].isdigit():
+                    qs = SubElement(qss, 'question', by='#'+_slugify(questioner))
+                    qs.text = unicode(q.strip())
+                else:
+                    qs = SubElement(qss, 'narrative')
+                    qs.text = unicode(q.strip())
+
+    na = SubElement(debate_section_3, 'speech', by='', startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
+    sef = SubElement(na, 'from')
+    sef.text = unicode('OTROS')
+    sep = SubElement(na, 'p')
+    sep.text = unicode(s_narrative.decode('utf-8').strip())
+
+    # _persons = {}
+    for j in flist:
+        se_person = j.split(':')[0]
+        se_person_slug = _slugify(se_person)
+
+        if se_person_slug and is_valid_person(se_person):
+            _persons[se_person_slug] = {
+                'href': '/ontology/person/'+_domain+'/'+se_person_slug,
+                'id': se_person_slug,
+                'showAs': se_person
+            }
+
+            se = SubElement(debate_section_3, 'speech', by='#'+se_person_slug,
+                            startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
+            sef = SubElement(se, 'from')
+            sef.text = unicode(se_person.strip())
+            sep = SubElement(se, 'p')
+
+            for i, br in enumerate(j[len(se_person+':'):].split('######')):
+                if i == 0:
+                    sep.text = br.strip()
+                else:
+                    sebr = SubElement(sep, 'br')
+                    sebr.tail = br.strip()
+
+    for key, value in _persons.iteritems():
+        se_person_tag = SubElement(references, 'TLCPerson', **value)
+
+    xml_content = xml.dom.minidom.parseString(tostring(akoman))
+
+    f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.xml', 'w')
+    f.write(xml_content.toprettyxml().encode('utf-8'))
     f.close()
-
-    # flist = filter(None, speech.decode('utf-8').split('\n'))
-    # qlist = filter(None, questions.decode('utf-8').split('\n'))
-
-    # akoman = Element('akomaNtoso')
-    # debate = SubElement(akoman, 'debate')
-
-    # # META
-    # meta = SubElement(debate, 'meta')
-    # references = SubElement(meta, 'references')
-
-    # # PREFACE
-    # preface = SubElement(debate, 'preface')
-    # doctitle = SubElement(preface, 'docTitle')
-    # doctitle.text = unicode('Comisión Sexta Senado'.decode('utf-8'))
-    # link = SubElement(preface, 'link', href=url)
-
-    # # DEBATE BODY
-    # debate_body = SubElement(debate, 'debateBody')
-    # debate_section_1 = SubElement(debate_body, 'debateSection')
-    # heading_1 = SubElement(debate_section_1, 'heading')
-    # heading_1.text = unicode(dateobject.strftime('%Y'))
-    # debate_section_2 = SubElement(debate_section_1, 'debateSection')
-    # heading_2 = SubElement(debate_section_2, 'heading')
-    # heading_2.text = unicode(_months.keys()[_months.values().index(dateobject.strftime('%m'))].title())
-    # debate_section_3 = SubElement(debate_section_2, 'debateSection')
-    # heading_3 = SubElement(debate_section_3, 'heading')
-    # heading_3.text = unicode('ACTA No. '+acta+' / '+dateobject.strftime('%d-%m-%Y'))
-
-    # nq = SubElement(debate_section_3, 'speech', by='', startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
-    # sef = SubElement(nq, 'from')
-    # sef.text = unicode('OTROS')
-    # sep = SubElement(nq, 'p')
-    # sep.text = unicode(q_narrative.decode('utf-8').strip())
-
-    # if qlist:
-    #     qss = SubElement(debate_section_3, 'questions')
-    #     qssh = SubElement(qss, 'heading')
-    #     qssh.text = 'CUESTIONARIO'
-
-    #     for q in qlist:
-    #         if q and q != '.':
-    #             if q[0].isdigit():
-    #                 qs = SubElement(qss, 'question', by='#'+_slugify(questioner))
-    #                 qs.text = unicode(q.strip())
-    #             else:
-    #                 qs = SubElement(qss, 'narrative')
-    #                 qs.text = unicode(q.strip())
-
-    # na = SubElement(debate_section_3, 'speech', by='', startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
-    # sef = SubElement(na, 'from')
-    # sef.text = unicode('OTROS')
-    # sep = SubElement(na, 'p')
-    # sep.text = unicode(s_narrative.decode('utf-8').strip())
-
-    # # _persons = {}
-    # for j in flist:
-    #     se_person = j.split(':')[0]
-    #     se_person_slug = _slugify(se_person)
-
-    #     if se_person_slug and is_valid_person(se_person):
-    #         _persons[se_person_slug] = {
-    #             'href': '/ontology/person/'+_domain+'/'+se_person_slug,
-    #             'id': se_person_slug,
-    #             'showAs': se_person
-    #         }
-
-    #         se = SubElement(debate_section_3, 'speech', by='#'+se_person_slug,
-    #                         startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
-    #         sef = SubElement(se, 'from')
-    #         sef.text = unicode(se_person.strip())
-    #         sep = SubElement(se, 'p')
-
-    #         for i, br in enumerate(j[len(se_person+':'):].split('######')):
-    #             if i == 0:
-    #                 sep.text = br.strip()
-    #             else:
-    #                 sebr = SubElement(sep, 'br')
-    #                 sebr.tail = br.strip()
-
-    # for key, value in _persons.iteritems():
-    #     se_person_tag = SubElement(references, 'TLCPerson', **value)
-
-    # xml_content = xml.dom.minidom.parseString(tostring(akoman))
-
-    # f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.xml', 'w')
-    # f.write(xml_content.toprettyxml().encode('utf-8'))
-    # f.close()
 
 
 def get_selectors(html, selector):
@@ -494,36 +490,31 @@ def scrape(url):
 
     print 'Obteniendo páginas válidas ...'
 
-    # while True:
-    #     if get_status_code(url+'page/'+str(pages)) != 404:
-    #         print url+'page/'+str(pages)
-    #         validpages.append(url+'page/'+str(pages))
-    #         pages += 1
-    #     else:
-    #         break
-
-    validpages = [
-        'https://comision6senado.wordpress.com/category/actas/page/1',
-        'https://comision6senado.wordpress.com/category/actas/page/2',
-    ]
+    while True:
+        if get_status_code(url+'page/'+str(pages)) != 404:
+            print url+'page/'+str(pages)
+            validpages.append(url+'page/'+str(pages))
+            pages += 1
+        else:
+            break
 
     for page in validpages:
 
         page = page.strip('/')
         pagename = os.path.basename(page)
-        # download_file(page, 'html')
+        download_file(page, 'html')
 
         for session in get_selectors('html/'+pagename+'.html', '.entry-title'):
 
             link = session.cssselect('a')[0].get('href').strip('/')
             linkname = os.path.basename(link)
-            # download_file(link, 'html')
+            download_file(link, 'html')
 
             for item in get_selectors('html/'+linkname+'.html', 'a'):
                 if item.get('href'):
                     if is_pdf_attachment(item.get('href')):
-                        # download_pdf(item.get('href'))
-                        # pdf_to_text('pdf/'+os.path.basename(item.get('href')))
+                        download_pdf(item.get('href'))
+                        pdf_to_text('pdf/'+os.path.basename(item.get('href')))
                         text_to_xml('text/'+os.path.splitext(os.path.basename(item.get('href')))[0]+'.txt', unicode(item.get('href')))
 
 
@@ -535,7 +526,7 @@ if __name__ == "__main__":
 
     xmldir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'xml')
 
-    # for f in os.listdir(xmldir):
-    #     if f.endswith('.xml'):
-    #         xmlpath = os.path.join(xmldir, f)
-    #         call(base_dir+'/manage.py load_akomantoso --file='+xmlpath+' --instance='+_domain.split('.')[0]+' --commit --merge-existing', shell=True)
+    for f in os.listdir(xmldir):
+        if f.endswith('.xml'):
+            xmlpath = os.path.join(xmldir, f)
+            call(base_dir+'/manage.py load_akomantoso --file='+xmlpath+' --instance='+_domain.split('.')[0]+' --commit --merge-existing', shell=True)
