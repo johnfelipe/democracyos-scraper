@@ -1,6 +1,7 @@
 virtualenv
 *.html
 *.xml
-*.pdf
 *.txt
+*.pdf
+*.doc
 *.sublime-workspace

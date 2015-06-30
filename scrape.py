@@ -233,32 +233,72 @@ def process_speech(text):
     text = ''.join(text)
 
     _persons_titles = []
-    for t, p in re.findall(r'######([^:#,]*?)-([^:#,]*?):', text):
-        if (p == 'Madre Comunitaria' or
-            p == 'Madre Comunitria' or
-            p == 'Investigadora Instituto Latinoamericano de Servicios Legales Alternativos (ILSA)' or
-            p == 'Miembro Junta Directiva de la Autoridad Nacional de Televisión (ANTV)' or
-            p == 'Miembro Junta Directiva de la ANTV' or
-            p == 'Miembro Junta Directiva ANTV'):
-            _persons_titles.append([_sanitize(p), _sanitize(t)])
-        elif (p == '(Cundinamarca)' or
-            p == 'fondo del Gobierno Nacional Municipio de' or
-            p == 'La cultura es prosperidad para todos." Ministra de Cultura' or
-            p == 'Yo me quiero otra vez referir a la sentencia C' or
-            p == 'Sigue allí la Malla Vial del Valle y sigue la vía Buga' or
-            p == 'Otro de los corredores importantes es el corredor Bogotá'):
-            pass
-        else:
-            _persons_titles.append([_sanitize(t), _sanitize(p)])
-
-    important = (re.findall(r'######((?:H\. S\.|Dra\.|Dr\.|Sr\.|Sra\.|Srta\.)[^:#,]*?),([^:#,]*?):', text) +
+    important = (re.findall(r'######([^:#,]*?)-([^:#,]*?):', text) +
+                 re.findall(r'######((?:H\. S\.|Dra\.|Dr\.|Sr\.|Sra\.|Srta\.)[^:#,]*?),([^:#,]*?):', text) +
                  re.findall(r'######((?:H\. S\.|Dra\.|Dr\.|Sr\.|Sra\.|Srta\.)[^:#,]*?)\s*\(([^:#,]*?)\):', text))
 
     for t, p in important:
-        _persons_titles.append([_sanitize(p), _sanitize(t)])
+        t = _sanitize(t)
+        p = _sanitize(p)
 
-    for t, p in _persons_titles:
-        print t+'----'+p
+        if (p == 'Madre Comunitaria' or
+            p == 'Madre Comunitria' or
+            p == 'Ministro de TIC' or
+            p == 'Ministro de TICs' or
+            p == 'Contralor delegado' or
+            p == 'Contralor Delegado' or
+            p == 'Representante Comunidad de Cáqueza' or
+            p == 'Superintendente de Industria y Comercio' or
+            p == 'Investigadora Instituto Latinoamericano de Servicios Legales Alternativos \(ILSA\)' or
+            p == 'Miembro de la Autoridad Nacional de Televisión' or
+            p == 'Miembro Junta Directiva de la Autoridad Nacional de Televisión \(ANTV\)' or
+            p == 'Miembro Junta Directiva de la Autoridad Nacional de Televisión' or
+            p == 'Miembro Junta Directiva de la ANTV' or
+            p == 'Miembro Junta Directiva ANTV'):
+            t, p = p, t
+
+        if (p == 'Claro-Dr. Juan Carlos Archila' or
+            p == 'La Costa Caribe' or
+            p == 'Buenaventura' or
+            p == 'a mí la CREG me quiso aplastar diciendo que cargo fijo ya existía y eso es falso' or
+            p == 'a última hora nos llegaron dos comentarios que para nosotros son importantes tener en cuenta por parte de la Dirección Nacional del Derechos de Autor' or
+            p == '815 que se refirió también el Senador Eugenio Prieto que dice' or
+            p == 'bienvenida' or
+            p == 'a mí me queda otra gran preocupación y lo decía en el momento en que presenté una proposición'):
+            continue
+
+        if p == 'Dra. Mariana Garcés Córdoba':
+            t = 'Ministra de Cultura'
+            p = 'Dra. Mariana Garcés Córdoba'
+
+        if p == 'EPM Telecomunicaciones-Dr. Marc Eichmann Perret':
+            t = 'Presidente UNE-EPM Telecomunicaciones'
+            p = 'Dr. Marc Eichmann Perret'
+
+
+#         if p == 'Cáqueza \(Cundinamarca\) Alcalde Dr. Jorge Alberto Poveda Guayacán':
+#             fondo del Gobierno Nacional Municipio de----Cáqueza \(Cundinamarca\) Alcalde Dr. Jorge Alberto Poveda Guayacán
+
+#             t = 'fondo del Gobierno Nacional Municipio de-Cáqueza \(Cundinamarca\) Alcalde'
+#             p = 'Dr. Jorge Alberto Poveda Guayacán'
+
+
+#         if p == 'Dra. Mariana Garcés Córdoba':
+# \(Cundinamarca\)----Dr. Alexander Alcalde Municipio de Guayabetal Rodríguez Parrado
+
+#             t = 'Ministra de Cultura'
+#             p = 'Dra. Mariana Garcés Córdoba'
+
+
+        if p == 'Ministerio de Minas y Energía-Dr. Alonso Mayelo Cardona Delgado':
+            t = 'Ministerio de Minas y Energía'
+            p = 'Dr. Alonso Mayelo Cardona Delgado'
+
+        if p == 'Departamento Nacional de Planeación-Dr. Jean Philippe Pening':
+            t = 'Departamento Nacional de Planeación'
+            p = 'Dr. Jean Philippe Pening'
+
+        # print t+'----'+p
         text = re.sub(t+'-'+p+':', p+':', text)
         text = re.sub(p+', '+t+':', p+':', text)
         text = re.sub(p+'[^:]', p+': ', text)
@@ -520,7 +560,8 @@ def scrape(url):
 
 if __name__ == "__main__":
 
-    base_dir = '/home/notroot/sayit/sayit.mysociety.org'
+    user = 'notroot'
+    base_dir = '/home/'+user+'/sayit/sayit.mysociety.org'
     url = 'https://comision6senado.wordpress.com/category/actas/'
     scrape(url)
 
