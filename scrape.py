@@ -1,19 +1,21 @@
 #!/usr/bin/python2.7
 # -*- coding: utf-8 -*-
 
-import sys, os, re, lxml.html, lxml.etree, urllib2
+import zipfile
 import xml.dom.minidom
-from xml.etree.ElementTree import Element, SubElement, tostring, parse
+import sys, os, re, lxml.html, lxml.etree, urllib2
+from xml.etree.ElementTree import Element, SubElement, tostring, parse, XML
 from urlparse import urlparse
 import unicodedata, string
 from datetime import datetime
-from subprocess import call
+from subprocess import call, Popen, PIPE
 
 from cStringIO import StringIO
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams
 from pdfminer.pdfpage import PDFPage
+
 
 _persons = {}
 _domain = 'senado.felipeurrego.com'
@@ -34,29 +36,34 @@ _months = {
 _slugify_strip_re = re.compile(r'[^\w\s-]')
 _slugify_hyphenate_re = re.compile(r'[-\s]+')
 _remove_paragraphs_re = [
-    [r'\S*\s*\S*\s*\n\S*\s*\d*\s*/\d*\s*(-|–)*\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*\d*-\d*\s*\n\S*.*', r''],
-    [r'\S*\s*\d*\s*/\d*\s*(-|–)*\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*\d*-\d*\s*\n\S*.*', r''],
-    [r'\S*\s*\d*/\d*\s*(-|–)*\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*\d*-\d*\s*\n\S*.*', r''],
-    [r'\S*\s*\d*-\d*\s*/\s*\S*\s*\d*-\d*\s*\n\S*.*\n\S*.*', r''],
-    [r'\S*\s*\d*/\d*\s*–\s*\S*\s*\d*/\d*\s*–\s*.*\n\s*\S*\s*\S*\s*\d*-\d*', r''],
-    [r'\S*\s*\S*\s*\d*\s*/\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*/\d*-\d*\s*\n\S*.*', r''],
-    [r'\S*\s*\S*\s*\d*\s*/\d*\s*(-|–)*\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*/\S*\s*', r''],
-    [r'\S*\s*\d*\s*/\d*\s*(-|–)*\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*', r''],
-    [r'Para la [sS]esión del (\S*)(\s*)([0-9]*)(\s*)de(\s*)(\S*)(\s*)de(\s*)([0-9]*)(.*)', r''],
-    [r'Llamada a lista.', r''],
-    [r'\n\nPresidente\.', '\n\nPresidente:'],
-    [r'Presdiente', 'Presidente'],
-    [r'H\.S\. ', r'H. S. '],
-    [r'H\. S ', r'H. S. '],
-    [r'Página\s*\d*', r''],
-    [r'\nI\s{0,1}\n', r''],
-    [r'\nII\s{0,1}\n', r''],
-    [r'\nIII\s{0,1}\n', r''],
-    [r'\nIV\s{0,1}\n', r''],
-    [r'\nV\s{0,1}\n', r''],
-    [r'\nVI\s{0,1}\n', r''],
+    # [r'\S*\s*\S*\s*\n\S*\s*\d*\s*/\d*\s*(-|–)*\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*\d*-\d*\s*\n\S*.*', r''],
+    # [r'\S*\s*\d*\s*/\d*\s*(-|–)*\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*\d*-\d*\s*\n\S*.*', r''],
+    # [r'\S*\s*\d*/\d*\s*(-|–)*\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*\d*-\d*\s*\n\S*.*', r''],
+    # [r'\S*\s*\d*-\d*\s*/\s*\S*\s*\d*-\d*\s*\n\S*.*\n\S*.*', r''],
+    # [r'\S*\s*\d*/\d*\s*–\s*\S*\s*\d*/\d*\s*–\s*.*\n\s*\S*\s*\S*\s*\d*-\d*', r''],
+    # [r'\S*\s*\S*\s*\d*\s*/\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*/\d*-\d*\s*\n\S*.*', r''],
+    # [r'\S*\s*\S*\s*\d*\s*/\d*\s*(-|–)*\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*/\S*\s*', r''],
+    # [r'\S*\s*\d*\s*/\d*\s*(-|–)*\s*\S*\s*\d*/\d*\s*\n\S*\s*\S*\s*', r''],
+    # [r'Para la [sS]esión del (\S*)(\s*)([0-9]*)(\s*)de(\s*)(\S*)(\s*)de(\s*)([0-9]*)(.*)', r''],
+    # [r'Llamada a lista.', r''],
+    # [r'\n\nPresidente\.', '\n\nPresidente:'],
+    # [r'Presdiente', 'Presidente'],
+    [r'Leído el orden del día señor Presidente\.', r''],
+    [r'H\.R\. ', r'H. R. '],
+    [r'H\.R ', r'H. R. '],
+    [r'H\. R ', r'H. R. '],
+    [r'INTERVENCIÓN\s*DEL\s*H\.\s*R\.\s*', r'H. R. '],
+    [r'Intervención\s*del\s*H\.\s*R\.\s*', r'H. R. '],
+    [r'Intervención\s*H\.\s*R\.\s*', r'H. R. '],
+    # [r'Página\s*\d*', r''],
+    # [r'\nI\s{0,1}\n', r''],
+    # [r'\nII\s{0,1}\n', r''],
+    # [r'\nIII\s{0,1}\n', r''],
+    # [r'\nIV\s{0,1}\n', r''],
+    # [r'\nV\s{0,1}\n', r''],
+    # [r'\nVI\s{0,1}\n', r''],
     [r'\n\s{0,1}\d{1,2}\s{0,1}\n', r''],
-    [r'([\*]*)', ''],
+    # [r'([\*]*)', ''],
     [r'^\.\s{0,1}\n', ''],
     [r'\f', r''],
     [r'“', '"'],
@@ -67,36 +74,39 @@ _remove_paragraphs_re = [
     [r'\s{2,}', ' '],
     [r'\n', ' '],
     [r'\s{2,}', ' '],
-    [r':\.', ':'],
-    [r'(?<!A LA )PROPOSICIÓN\s*No\.\s*(\d*)/(\d*)\s*', r'PROPOSICIÓN No. \1/\2. '],
+    # [r':\.', ':'],
+    # [r'(?<!A LA )PROPOSICIÓN\s*No\.\s*(\d*)/(\d*)\s*', r'PROPOSICIÓN No. \1/\2. '],
+    [r'Hace\s*(?:el)*uso\s*de\s*la\s*palabra\s*el\s*señor\s*([^:]*?),*\s*(H\. R\.)\s*([^:]*?):', r'\1-\2 \3:'],
+    [r'Presidente-H\. R\.', r'H. R.'],
 ]
 _speech_re = [
-    [r'(\d)\.\-', r'######\1.-'],
-    [r'(?<!Dr)(?<!DR)(?<!Dra)(?<!DRA)(?<!No)(?<!NO)(?<!Sr)(?<!SR)(?<!Sra)(?<!SRA)(?<! D)(?<! H)(?<! S)(?<!-H)\.\s', r'.######'],
-    [r'\s(?<!#)(?<!-)H\. S\.', r'.######H. S.'],
-    [r'La\s*Secretaria\s*(–|-|,)\s*Dra\.', 'Secretaria-Dra.'],
-    [r'######La\s*Secretaria\s*:', '######Secretaria:'],
-    [r'(El|La){0,1}\s*(Presidente|Presidenta)\s*(–|-|,)\s*H\.\s*S\.', 'Presidente-H. S.'],
-    [r'######(El|La){0,1}\s*(Presidente|Presidenta)\s*:', '######Presidente:'],
-    [r'\s*(?<!#)(Presidente|Presidenta|Secretaria)(:|-)', r'.######\1\2'],
-    [r'Presidente-([^:]*?),*\s(solicita|declara)', r'Presidente-\1: \2'],
-    [r'Secretaria-([^:]*?),*\s(realiza)', r'Secretaria-\1: \2'],
-    [r'\sH\.\sS\.([^#]*?):', r'.######H. S.\1:'],
-    [r'######((H\. S\.|Dra\.|Dr\.|Sr\.|Sra\.|Srta\.)[^#]*?):', r'######\1:'],
-    [r'EUGENIO PRIETO SOTO Presidente Vicepresidente JORGE ELI(E|É|)CER GUEVARA SANDRA OVALLE GARC(I|Í|)A Secretaria General', r''],
-    [r'EUGENIO PRIETO SOTO Presidente Vicepresidente JORGE ELI(E|É|)CER GUEVARA SANDRA OVALLE GARC(I|Í|)A', r''],
-    [r'EUGENIO PRIETO SOTO Presidente JORGE ELI(E|É|)CER GUEVARA Vicepresidente SANDRA OVALLE GARC(I|Í|)A Secretaria General', r''],
-    [r'EUGENIO PRIETO SOTO Presidente JORGE ELI(E|É|)CER GUEVARA Vicepresidente SANDRA OVALLE GARC(I|Í|)A', r''],
-    [r'EUGENIO PRIETO SOTO JORGE ELI(E|É|)CER GUEVARA Presidente Vicepresidente SANDRA OVALLE GARC(I|Í|)A Secretaria General', r''],
-    [r'EUGENIO PRIETO SOTO JORGE ELI(E|É|)CER GUEVARA Presidente Vicepresidente SANDRA OVALLE GARC(I|Í|)A', r''],
-    [r'EUGENIO PRIETO SOTO JORGE ELI(E|É|)CER GUEVARA SANDRA OVALLE', r''],
-    [r'EUGENIO PRIETO SOTO Presidente JORGE ELI(E|É|)CER GUEVARA Vicepresidente interesantes en representación de SANDRA OVALLE GARC(I|Í|)A', r''],
+    # [r'(\d)\.\-', r'######\1.-'],
+    # [r'(?<!Dr)(?<!DR)(?<!Dra)(?<!DRA)(?<!No)(?<!NO)(?<!Sr)(?<!SR)(?<!Sra)(?<!SRA)(?<! D)(?<! H)(?<! S)(?<!-H)\.\s', r'.######'],
+    # [r'\s(?<!#)(?<!-)H\. S\.', r'.######H. S.'],
+    # [r'La\s*Secretaria\s*(–|-|,)\s*Dra\.', 'Secretaria-Dra.'],
+    # [r'######La\s*Secretaria\s*:', '######Secretaria:'],
+    # [r'(El|La){0,1}\s*(Presidente|Presidenta)\s*(–|-|,)\s*H\.\s*S\.', 'Presidente-H. S.'],
+    # [r'######(El|La){0,1}\s*(Presidente|Presidenta)\s*:', '######Presidente:'],
+    # [r'\s*(?<!#)(Presidente|Presidenta|Secretaria)(:|-)', r'.######\1\2'],
+    # [r'Presidente-([^:]*?),*\s(solicita|declara)', r'Presidente-\1: \2'],
+    # [r'Secretaria-([^:]*?),*\s(realiza)', r'Secretaria-\1: \2'],
+    # [r'\sH\.\sS\.([^#]*?):', r'.######H. S.\1:'],
+    # [r'######((H\. S\.|Dra\.|Dr\.|Sr\.|Sra\.|Srta\.)[^#]*?):', r'######\1:'],
+    # [r'EUGENIO PRIETO SOTO Presidente Vicepresidente JORGE ELI(E|É|)CER GUEVARA SANDRA OVALLE GARC(I|Í|)A Secretaria General', r''],
+    # [r'EUGENIO PRIETO SOTO Presidente Vicepresidente JORGE ELI(E|É|)CER GUEVARA SANDRA OVALLE GARC(I|Í|)A', r''],
+    # [r'EUGENIO PRIETO SOTO Presidente JORGE ELI(E|É|)CER GUEVARA Vicepresidente SANDRA OVALLE GARC(I|Í|)A Secretaria General', r''],
+    # [r'EUGENIO PRIETO SOTO Presidente JORGE ELI(E|É|)CER GUEVARA Vicepresidente SANDRA OVALLE GARC(I|Í|)A', r''],
+    # [r'EUGENIO PRIETO SOTO JORGE ELI(E|É|)CER GUEVARA Presidente Vicepresidente SANDRA OVALLE GARC(I|Í|)A Secretaria General', r''],
+    # [r'EUGENIO PRIETO SOTO JORGE ELI(E|É|)CER GUEVARA Presidente Vicepresidente SANDRA OVALLE GARC(I|Í|)A', r''],
+    # [r'EUGENIO PRIETO SOTO JORGE ELI(E|É|)CER GUEVARA SANDRA OVALLE', r''],
+    # [r'EUGENIO PRIETO SOTO Presidente JORGE ELI(E|É|)CER GUEVARA Vicepresidente interesantes en representación de SANDRA OVALLE GARC(I|Í|)A', r''],
 ]
 _cuestionario_re = [
-    r'^(.*)\ncuestionario\s*?(:|al|para|adjunto|\n|ADITIVO A LA PROPOSICIÓN|ANEXO A LA PROPOSICIÓN)(.*)$',
-    r'^(.*)siguiente\s*cuestionario\s*?(:|al|para|adjunto|\n|ADITIVO A LA PROPOSICIÓN|ANEXO A LA PROPOSICIÓN)(.*)$',
-    r'^(.*)ADICIÓNESE\s*A\s*LA\s*PROPOSICIÓN(.*)EL\s*CUESTIONARIO(.*)$',
-    r'^(.*)cuestionario(\s*)adjunto(.*)$'
+    # r'^(.*)\ncuestionario\s*?(:|al|para|adjunto|\n|ADITIVO A LA PROPOSICIÓN|ANEXO A LA PROPOSICIÓN)(.*)$',
+    # r'^(.*)siguiente\s*cuestionario\s*?(:|al|para|adjunto|\n|ADITIVO A LA PROPOSICIÓN|ANEXO A LA PROPOSICIÓN)(.*)$',
+    # r'^(.*)ADICIÓNESE\s*A\s*LA\s*PROPOSICIÓN(.*)EL\s*CUESTIONARIO(.*)$',
+    # r'^(.*)cuestionario(\s*)adjunto(.*)$'
+    r'^(.*)preguntas(\s*)objeto(.*)$'
 ]
 _questions_re = [
     [r'(?<!\.)(?<!\$)\s(\d{1,2})\.(?!\d)', r'. \1.'],
@@ -107,6 +117,9 @@ _questions_re = [
     [r'(?<!\.)\sPara el', r'. Para el'],
     [r'\.\sPara el', r'.######Para el'],
 ]
+WORD_NAMESPACE = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+PARA = WORD_NAMESPACE + 'p'
+TEXT = WORD_NAMESPACE + 't'
 
 
 class CustomHTTPRedirectHandler(urllib2.HTTPRedirectHandler):
@@ -130,6 +143,12 @@ def get_status_code(url):
         return response.getcode()
     except Exception:
         return 404
+
+
+def execute_process(cmd):
+    p = Popen(cmd.split(), stdin=PIPE, stdout=PIPE, stderr=PIPE)
+    output, err = p.communicate()
+    return output
 
 
 def _slugify(value):
@@ -157,7 +176,8 @@ def get_narratives(text):
 
 
 def get_date_object(text):
-    m = re.search(r'Para la [sS]esión del (\S*)(\s*)([0-9]*)(\s*)de(\s*)(\S*)(\s*)de(\s*)([0-9]*)', text)
+    m = (re.search(r'De la [sS]esión Ordinaria del (\S*)(\s*)([0-9]*)(\s*)de(\s*)(\S*)(\s*)de(\s*)([0-9]*)', text) or
+         re.search(r'(\S*)(\s*)([0-9]{1,2})(\s*)de(\s*)(\S*)(\s*)de(\s*)([0-9]{4})', text))
     return datetime.strptime(m.group(3)+'-'+_months[m.group(6).lower()]+'-'+m.group(9), '%d-%m-%Y')
 
 
@@ -167,10 +187,11 @@ def get_acta_intro(text):
 
 
 def get_questions_match(text):
-    return (re.search(_cuestionario_re[0], text, flags=re.S|re.I)
-            or re.search(_cuestionario_re[1], text, flags=re.S|re.I)
-            or re.search(_cuestionario_re[2], text, flags=re.S|re.I)
-            or re.search(_cuestionario_re[3], text, flags=re.S|re.I))
+    return re.search(_cuestionario_re[0], text, flags=re.S|re.I)
+    # return (re.search(_cuestionario_re[0], text, flags=re.S|re.I)
+    #         or re.search(_cuestionario_re[1], text, flags=re.S|re.I)
+    #         or re.search(_cuestionario_re[2], text, flags=re.S|re.I)
+    #         or re.search(_cuestionario_re[3], text, flags=re.S|re.I))
 
 
 def get_narrative_questions_speech(text):
@@ -191,12 +212,12 @@ def get_narrative_questions_speech(text):
             else:
                 break
 
-        match = re.search(r'^(.*)LO\s*QUE\s*PROPONGAN\s*LOS\s*HONORABLES\s*SENADORES(.*)$', questions, flags=re.S)
+        match = re.search(r'^(.*)\nLo\s*que\s*propongan\s*los\s*Honorables\s*Representantes(?:\s*a\s*la\s*C(?:á|a)mara)*\.*(.*)$', questions, flags=re.S|re.I)
         questions = match.group(1)
         speech = match.group(2)
 
     else:
-        match = re.search(r'^(.*)LO\s*QUE\s*PROPONGAN\s*LOS\s*HONORABLES\s*SENADORES(.*)$', text, flags=re.S)
+        match = re.search(r'^(.*)\nLo\s*que\s*propongan\s*los\s*Honorables\s*Representantes(?:\s*a\s*la\s*C(?:á|a)mara)*\.*(.*)$', text, flags=re.S|re.I)
         narrative = match.group(1)
         speech = match.group(2)
         questions = ''
@@ -349,97 +370,101 @@ def text_to_xml(fname, url):
     q_narrative, s_narrative = get_narratives(narrative)
 
     speech = process_speech(speech)
-    questions, questioner = process_questions(questions)
-    q_narrative = process_narratives(q_narrative)
-    s_narrative = process_narratives(s_narrative)
+    # questions, questioner = process_questions(questions)
+    # q_narrative = process_narratives(q_narrative)
+    # s_narrative = process_narratives(s_narrative)
 
-    flist = filter(None, speech.decode('utf-8').split('\n'))
-    qlist = filter(None, questions.decode('utf-8').split('\n'))
-
-    akoman = Element('akomaNtoso')
-    debate = SubElement(akoman, 'debate')
-
-    # META
-    meta = SubElement(debate, 'meta')
-    references = SubElement(meta, 'references')
-
-    # PREFACE
-    preface = SubElement(debate, 'preface')
-    doctitle = SubElement(preface, 'docTitle')
-    doctitle.text = unicode('Comisión Sexta Senado'.decode('utf-8'))
-    link = SubElement(preface, 'link', href=url)
-
-    # DEBATE BODY
-    debate_body = SubElement(debate, 'debateBody')
-    debate_section_1 = SubElement(debate_body, 'debateSection')
-    heading_1 = SubElement(debate_section_1, 'heading')
-    heading_1.text = unicode(dateobject.strftime('%Y'))
-    debate_section_2 = SubElement(debate_section_1, 'debateSection')
-    heading_2 = SubElement(debate_section_2, 'heading')
-    heading_2.text = unicode(_months.keys()[_months.values().index(dateobject.strftime('%m'))].title())
-    debate_section_3 = SubElement(debate_section_2, 'debateSection')
-    heading_3 = SubElement(debate_section_3, 'heading')
-    heading_3.text = unicode('ACTA No. '+acta+' / '+dateobject.strftime('%d-%m-%Y'))
-
-    nq = SubElement(debate_section_3, 'speech', by='', startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
-    sef = SubElement(nq, 'from')
-    sef.text = unicode('OTROS')
-    sep = SubElement(nq, 'p')
-    sep.text = unicode(q_narrative.decode('utf-8').strip())
-
-    if qlist:
-        qss = SubElement(debate_section_3, 'questions')
-        qssh = SubElement(qss, 'heading')
-        qssh.text = 'CUESTIONARIO'
-
-        for q in qlist:
-            if q and q != '.':
-                if q[0].isdigit():
-                    qs = SubElement(qss, 'question', by='#'+_slugify(questioner))
-                    qs.text = unicode(q.strip())
-                else:
-                    qs = SubElement(qss, 'narrative')
-                    qs.text = unicode(q.strip())
-
-    na = SubElement(debate_section_3, 'speech', by='', startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
-    sef = SubElement(na, 'from')
-    sef.text = unicode('OTROS')
-    sep = SubElement(na, 'p')
-    sep.text = unicode(s_narrative.decode('utf-8').strip())
-
-    # _persons = {}
-    for j in flist:
-        se_person = j.split(':')[0]
-        se_person_slug = _slugify(se_person)
-
-        if se_person_slug and is_valid_person(se_person):
-            _persons[se_person_slug] = {
-                'href': '/ontology/person/'+_domain+'/'+se_person_slug,
-                'id': se_person_slug,
-                'showAs': se_person
-            }
-
-            se = SubElement(debate_section_3, 'speech', by='#'+se_person_slug,
-                            startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
-            sef = SubElement(se, 'from')
-            sef.text = unicode(se_person.strip())
-            sep = SubElement(se, 'p')
-
-            for i, br in enumerate(j[len(se_person+':'):].split('######')):
-                if i == 0:
-                    sep.text = br.strip()
-                else:
-                    sebr = SubElement(sep, 'br')
-                    sebr.tail = br.strip()
-
-    for key, value in _persons.iteritems():
-        se_person_tag = SubElement(references, 'TLCPerson', **value)
-
-    xml_content = xml.dom.minidom.parseString(tostring(akoman))
-
-    f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.xml', 'w')
-    f.write(xml_content.toprettyxml().encode('utf-8'))
+    f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.txt', 'w')
+    f.write(speech)
     f.close()
+
+    # flist = filter(None, speech.decode('utf-8').split('\n'))
+    # qlist = filter(None, questions.decode('utf-8').split('\n'))
+
+    # akoman = Element('akomaNtoso')
+    # debate = SubElement(akoman, 'debate')
+
+    # # META
+    # meta = SubElement(debate, 'meta')
+    # references = SubElement(meta, 'references')
+
+    # # PREFACE
+    # preface = SubElement(debate, 'preface')
+    # doctitle = SubElement(preface, 'docTitle')
+    # doctitle.text = unicode('Comisión Sexta Senado'.decode('utf-8'))
+    # link = SubElement(preface, 'link', href=url)
+
+    # # DEBATE BODY
+    # debate_body = SubElement(debate, 'debateBody')
+    # debate_section_1 = SubElement(debate_body, 'debateSection')
+    # heading_1 = SubElement(debate_section_1, 'heading')
+    # heading_1.text = unicode(dateobject.strftime('%Y'))
+    # debate_section_2 = SubElement(debate_section_1, 'debateSection')
+    # heading_2 = SubElement(debate_section_2, 'heading')
+    # heading_2.text = unicode(_months.keys()[_months.values().index(dateobject.strftime('%m'))].title())
+    # debate_section_3 = SubElement(debate_section_2, 'debateSection')
+    # heading_3 = SubElement(debate_section_3, 'heading')
+    # heading_3.text = unicode('ACTA No. '+acta+' / '+dateobject.strftime('%d-%m-%Y'))
+
+    # nq = SubElement(debate_section_3, 'speech', by='', startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
+    # sef = SubElement(nq, 'from')
+    # sef.text = unicode('OTROS')
+    # sep = SubElement(nq, 'p')
+    # sep.text = unicode(q_narrative.decode('utf-8').strip())
+
+    # if qlist:
+    #     qss = SubElement(debate_section_3, 'questions')
+    #     qssh = SubElement(qss, 'heading')
+    #     qssh.text = 'CUESTIONARIO'
+
+    #     for q in qlist:
+    #         if q and q != '.':
+    #             if q[0].isdigit():
+    #                 qs = SubElement(qss, 'question', by='#'+_slugify(questioner))
+    #                 qs.text = unicode(q.strip())
+    #             else:
+    #                 qs = SubElement(qss, 'narrative')
+    #                 qs.text = unicode(q.strip())
+
+    # na = SubElement(debate_section_3, 'speech', by='', startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
+    # sef = SubElement(na, 'from')
+    # sef.text = unicode('OTROS')
+    # sep = SubElement(na, 'p')
+    # sep.text = unicode(s_narrative.decode('utf-8').strip())
+
+    # # _persons = {}
+    # for j in flist:
+    #     se_person = j.split(':')[0]
+    #     se_person_slug = _slugify(se_person)
+
+    #     if se_person_slug and is_valid_person(se_person):
+    #         _persons[se_person_slug] = {
+    #             'href': '/ontology/person/'+_domain+'/'+se_person_slug,
+    #             'id': se_person_slug,
+    #             'showAs': se_person
+    #         }
+
+    #         se = SubElement(debate_section_3, 'speech', by='#'+se_person_slug,
+    #                         startTime=unicode(dateobject.strftime('%Y-%m-%dT%H:%M:%S')))
+    #         sef = SubElement(se, 'from')
+    #         sef.text = unicode(se_person.strip())
+    #         sep = SubElement(se, 'p')
+
+    #         for i, br in enumerate(j[len(se_person+':'):].split('######')):
+    #             if i == 0:
+    #                 sep.text = br.strip()
+    #             else:
+    #                 sebr = SubElement(sep, 'br')
+    #                 sebr.tail = br.strip()
+
+    # for key, value in _persons.iteritems():
+    #     se_person_tag = SubElement(references, 'TLCPerson', **value)
+
+    # xml_content = xml.dom.minidom.parseString(tostring(akoman))
+
+    # f = open('xml/'+os.path.splitext(os.path.basename(fname))[0]+'.xml', 'w')
+    # f.write(xml_content.toprettyxml().encode('utf-8'))
+    # f.close()
 
 
 def get_selectors(html, selector):
@@ -523,6 +548,15 @@ def pdf_to_text(fname):
     file.close()
 
 
+def doc_to_text(path):
+    call('catdoc '+path+' > text/'+os.path.splitext(os.path.basename(path))[0]+'.txt', shell=True)
+
+
+def guess_filetype(path):
+    o = execute_process('file -bi '+path)
+    return o.split(';')[0].split('/')[1]
+
+
 def scrape(url):
 
     pages = 1
@@ -530,32 +564,26 @@ def scrape(url):
 
     print 'Obteniendo páginas válidas ...'
 
-    while True:
-        if get_status_code(url+'page/'+str(pages)) != 404:
-            print url+'page/'+str(pages)
-            validpages.append(url+'page/'+str(pages))
-            pages += 1
-        else:
-            break
+    validpages = ['http://www.camara.gov.co/portal2011/actas-comision-tercera']
 
     for page in validpages:
 
         page = page.strip('/')
         pagename = os.path.basename(page)
-        download_file(page, 'html')
+        # download_file(page, 'html')
 
-        for session in get_selectors('html/'+pagename+'.html', '.entry-title'):
+        for session in get_selectors('html/'+pagename+'.html', '.doclink')[:4]:
 
-            link = session.cssselect('a')[0].get('href').strip('/')
+            link = 'http://www.camara.gov.co/'+session.cssselect('a')[0].get('href').strip('/')
             linkname = os.path.basename(link)
-            download_file(link, 'html')
+            # download_file(link, 'doc')
 
-            for item in get_selectors('html/'+linkname+'.html', 'a'):
-                if item.get('href'):
-                    if is_pdf_attachment(item.get('href')):
-                        download_pdf(item.get('href'))
-                        pdf_to_text('pdf/'+os.path.basename(item.get('href')))
-                        text_to_xml('text/'+os.path.splitext(os.path.basename(item.get('href')))[0]+'.txt', unicode(item.get('href')))
+            # if guess_filetype('doc/'+linkname+'.doc') == 'pdf':
+            #     pdf_to_text('doc/'+linkname+'.doc')
+            # elif guess_filetype('doc/'+linkname+'.doc') == 'msword':
+            #     doc_to_text('doc/'+linkname+'.doc')
+
+            text_to_xml('text/'+linkname+'.txt', link)
 
 
 if __name__ == "__main__":
@@ -565,9 +593,9 @@ if __name__ == "__main__":
     url = 'https://comision6senado.wordpress.com/category/actas/'
     scrape(url)
 
-    xmldir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'xml')
+    # xmldir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'xml')
 
-    for f in os.listdir(xmldir):
-        if f.endswith('.xml'):
-            xmlpath = os.path.join(xmldir, f)
-            call(base_dir+'/manage.py load_akomantoso --file='+xmlpath+' --instance='+_domain.split('.')[0]+' --commit --merge-existing', shell=True)
+    # for f in os.listdir(xmldir):
+    #     if f.endswith('.xml'):
+    #         xmlpath = os.path.join(xmldir, f)
+    #         execute_process(base_dir+'/manage.py load_akomantoso --file='+xmlpath+' --instance='+_domain.split('.')[0]+' --commit --merge-existing')
