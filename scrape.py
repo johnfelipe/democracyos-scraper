@@ -5,7 +5,8 @@ import zipfile
 import xml.dom.minidom
 import sys, os, re, lxml.html, lxml.etree, urllib2
 from xml.etree.ElementTree import Element, SubElement, tostring, parse, XML
-from urlparse import urlparse
+from urlparse import urlparse, urlunparse, parse_qs
+from urllib import urlencode
 import unicodedata, string
 from datetime import datetime
 from subprocess import call, Popen, PIPE
@@ -182,7 +183,7 @@ def get_date_object(text):
 
 
 def get_acta_intro(text):
-    m = re.search(r'ACTA No\. ([0-9]*)(.*)', text, flags=re.S|re.I)
+    m = re.search(r'ACTA No\. ([0-9]*)(.*)', text, flags=re.S | re.I)
     return (m.group(1), m.group(2))
 
 
@@ -500,14 +501,15 @@ def is_pdf_attachment(url):
             return True
     return False
 
+def get_pagename(url, ext):
+    u = urlparse(url)
+    return ext+'/'+_slugify(os.path.basename(u.path)+u.query)+'.'+ext
+
 
 def download_file(url, dest):
     print 'Descargando '+url
-
-    parse_object = urlparse(url)
     response = urllib2.urlopen(url)
-
-    file = open(dest+'/'+os.path.basename(parse_object.path)+'.'+dest, 'w')
+    file = open(dest, 'w')
     file.write(response.read())
     file.close()
 
@@ -517,8 +519,9 @@ def download_pdf(url):
 
     parse_object = urlparse(url)
     response = urllib2.urlopen(url)
+    filename = _slugify(parse_object.path)
 
-    file = open('pdf/'+os.path.basename(parse_object.path), 'w')
+    file = open('pdf/'+os.path.basename(filename), 'w')
     file.write(response.read())
     file.close()
 
@@ -554,36 +557,76 @@ def doc_to_text(path):
 
 def guess_filetype(path):
     o = execute_process('file -bi '+path)
-    return o.split(';')[0].split('/')[1]
+    ret
+    urn o.split(';')[0].split('/')[1]
 
+def update_url_params(url, params):
+    url_parts = list(urlparse(url))
+    query = dict(parse_qs(url_parts[4]))
+    query.update(params)
+    url_parts[4] = urlencode(query)
+    return urlunparse(url_parts)
 
 def scrape(url):
 
-    pages = 1
-    validpages = []
-
     print 'Obteniendo páginas válidas ...'
 
-    validpages = ['http://www.camara.gov.co/portal2011/actas-comision-tercera']
+    urlbase = 'http://www.camara.gov.co/portal2011/proceso-y-tramite-legislativo/proyectos-de-ley'
+    urlparams = {'view': 'proyectosdeley',
+                 'option': 'com_proyectosdeley',
+                 'limit': 0}
+    page = update_url_params(urlbase, urlparams)
+    pagename = get_pagename(page, 'html')
 
-    for page in validpages:
+    laws = []
+    projects = []
 
-        page = page.strip('/')
-        pagename = os.path.basename(page)
-        # download_file(page, 'html')
+    if not os.path.exists(pagename):
+        download_file(page, pagename)
 
-        for session in get_selectors('html/'+pagename+'.html', '.doclink')[:4]:
+    for session in get_selectors(pagename, 'a'):
 
-            link = 'http://www.camara.gov.co/'+session.cssselect('a')[0].get('href').strip('/')
-            linkname = os.path.basename(link)
-            # download_file(link, 'doc')
+        project = session.get('href')
 
-            # if guess_filetype('doc/'+linkname+'.doc') == 'pdf':
-            #     pdf_to_text('doc/'+linkname+'.doc')
-            # elif guess_filetype('doc/'+linkname+'.doc') == 'msword':
-            #     doc_to_text('doc/'+linkname+'.doc')
+        if project.startswith('/'):
+            project = 'http://www.camara.gov.co'+project
 
-            text_to_xml('text/'+linkname+'.txt', link)
+        link_query_dict = parse_qs(urlparse(project).query)
+
+        if 'view' in link_query_dict and 'idpry' in link_query_dict:
+            if link_query_dict['view'][0] == 'ver_proyectodeley':
+                projects.append(project)
+
+    for project in projects:
+        pagename = get_pagename(project, 'html')
+
+        if not os.path.exists(pagename) and is_valid_url(project):
+            download_file(project, pagename)
+
+        for session in get_selectors(pagename, 'a'):
+            law = session.get('href')
+
+            if (urlparse(law).netloc == 'www.imprenta.gov.co'
+               and urlparse(law).path == '/gacetap/gaceta.mostrar_documento'):
+                laws.append(law)
+
+    for law in laws:
+        pagename = get_pagename(law, 'text')
+
+        if not os.path.exists(pagename) and is_valid_url(law):
+            download_file(law, pagename)
+
+
+        # link = 'http://www.camara.gov.co/'+session.cssselect('a')[0].get('href').strip('/')
+        # linkname = os.path.basename(link)
+        # download_file(link, 'doc')
+
+        # if guess_filetype('doc/'+linkname+'.doc') == 'pdf':
+        #     pdf_to_text('doc/'+linkname+'.doc')
+        # elif guess_filetype('doc/'+linkname+'.doc') == 'msword':
+        #     doc_to_text('doc/'+linkname+'.doc')
+
+        # text_to_xml('text/'+linkname+'.txt', link)
 
 
 if __name__ == "__main__":
