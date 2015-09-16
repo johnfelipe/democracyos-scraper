@@ -5,4 +5,5 @@ virtualenv
 *.text
 *.pdf
 *.doc
+*.json
 *.sublime-workspace
