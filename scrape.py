@@ -8,13 +8,26 @@ import json
 import urllib2
 import lxml.html
 import lxml.etree
+from datetime import datetime
 import unicodedata
+from subprocess import call
 
 from urlparse import urlparse, urlunparse, parse_qs
 from urllib import urlencode
-
-from lxml import etree
 from StringIO import StringIO
+
+_months = {'Enero': 'January',
+           'Febrero': 'February',
+           'Marzo': 'March',
+           'Abril': 'April',
+           'Mayo': 'May',
+           'Junio': 'June',
+           'Julio': 'July',
+           'Agosto': 'August',
+           'Septiembre': 'September',
+           'Octubre': 'October',
+           'Noviembre': 'November',
+           'Diciembre': 'December'}
 
 _slugify_strip_re = re.compile(r'[^\w\s-]')
 _slugify_hyphenate_re = re.compile(r'[-\s]+')
@@ -49,26 +62,27 @@ def _slugify(value):
     return _slugify_hyphenate_re.sub('-', value)
 
 
-def text_to_json(fname, url):
+def text_to_json(url, tag, lawID, publishedAt, state, status, pagename):
     print 'Convirtiendo TXT a JSON '+url
 
-    f = open(fname)
+    f = open(pagename)
     fcontent = f.read()
     f.close()
 
-    clauses = []
-    mediaTitle = ''
-    summary = ''
-    text = ''
-
-    tree = etree.parse(StringIO(fcontent), etree.HTMLParser())
+    tree = lxml.etree.parse(StringIO(fcontent), lxml.etree.HTMLParser())
 
     if tree.xpath('body/div[@class="Section1"]'):
 
+        clauses = []
         mediaTitle = unicode(tree.xpath('body/center/p/font/strong/text()')[0]).encode('utf-8')
         summary = unicode(tree.xpath('body/center/text()')[1]).encode('utf-8')
         text = tree.xpath('body/div[@class="Section1"]/p[@class="MsoNormal"]/span/text()')
         text = unicode(' '.join(text)).encode('utf-8')
+        tag = unicode(tag).encode('utf-8')
+        lawID = unicode(lawID).encode('utf-8')
+        publishedAt = unicode(publishedAt).encode('utf-8')
+        state = unicode(state).encode('utf-8')
+        status = unicode(status).encode('utf-8')
 
         for r, f in _correct_text_re:
             text = re.sub(r, f, text).strip()
@@ -82,29 +96,25 @@ def text_to_json(fname, url):
         articles = re.findall(r'Artículo\s(\d+)°\.(.*)', text)
 
         for n, a in articles:
-            clauses.append({
-                'clauseName': int(n),
-                'order': int(n)-1,
-                'text': a,
-                })
+            clauses.append({'clauseName': int(n),
+                            'order': int(n)-1,
+                            'text': a})
 
-    json_data = [{
-        'state': 'bill',
-        'status': 'open',
-        'lawID': '',
-        'tag': '',
-        'officialTitle': '',
-        'mediaTitle': mediaTitle,
-        'publishedAt': '',
-        'source': url,
-        'summary': summary,
-        'clauses': clauses
-    }]
+        json_data = [{
+            'state': state,
+            'status': status,
+            'lawID': lawID,
+            'tag': tag,
+            'mediaTitle': mediaTitle,
+            'publishedAt': publishedAt,
+            'source': url,
+            'summary': summary,
+            'clauses': clauses
+        }]
 
-    f = open('json/'+os.path.splitext(os.path.basename(fname))[0]+'.json', 'w')
-    f.write(json.dumps(json_data, ensure_ascii=False, indent=4))
-    # f.write(text)
-    f.close()
+        f = open('json/'+os.path.splitext(os.path.basename(pagename))[0]+'.json', 'w')
+        f.write(json.dumps(json_data, ensure_ascii=False, indent=4))
+        f.close()
 
 
 def get_selectors(html, selector):
@@ -181,10 +191,37 @@ def scrape():
                 projects.append(project)
 
     for project in projects:
+
+        state = 'project'
+        status = 'open'
+        lawID = ''
+        publishedAt = ''
+        tag = ''
+
         pagename = get_pagename(project, 'html')
 
         if not os.path.exists(pagename) and is_valid_url(project):
             download_file(project, pagename)
+
+        for session in get_selectors(pagename, '.ar_12black b'):
+            if _slugify(session.text) == 'ley':
+                status = 'bill'
+
+            if _slugify(session.text) == 'retirado':
+                state = 'closed'
+
+        for i, session in enumerate(get_selectors(pagename, '.ar_12black')):
+            if session.text:
+                if i == 0:
+                    lawID = session.text
+                if i == 5:
+                    date = session.text.split()
+                    if date:
+                        date[0] = _months[date[0]]
+                        date.pop(2)
+                        publishedAt = datetime.strptime(' '.join(date), '%B %d %Y').strftime('%Y-%m-%d')
+                if i == 7:
+                    tag = session.text
 
         for session in get_selectors(pagename, 'a'):
             law = session.get('href')
@@ -195,24 +232,43 @@ def scrape():
                 if int(link_query_dict['p_tipo'][0]) == 5:
                     if (urlparse(law).netloc == 'www.imprenta.gov.co'
                        and urlparse(law).path == '/gacetap/gaceta.mostrar_documento'):
-                        laws.append(law)
+                        laws.append({'url': law,
+                                     'tag': tag,
+                                     'lawID': lawID,
+                                     'publishedAt': publishedAt,
+                                     'state': state,
+                                     'status': status,
+                                     'pagename': get_pagename(law, 'text')})
 
                     if (urlparse(law).netloc == 'servoaspr.imprenta.gov.co:7778'
                        and urlparse(law).path == '/gacetap/gaceta.mostrar_documento'):
                         url_parts = list(urlparse(law))
                         url_parts[1] = url_parts[1].split(':')[0]
-                        laws.append(urlunparse(url_parts))
+                        laws.append({'url': urlunparse(url_parts),
+                                     'tag': tag,
+                                     'lawID': lawID,
+                                     'publishedAt': publishedAt,
+                                     'state': state,
+                                     'status': status,
+                                     'pagename': get_pagename(law, 'text')})
 
     for law in laws:
-        pagename = get_pagename(law, 'text')
 
-        if not os.path.exists(pagename):
-            download_file(law, pagename)
+        if not os.path.exists(law['pagename']):
+            download_file(law, law['pagename'])
 
-        json = text_to_json(pagename, law)
+        json = text_to_json(**law)
 
 
 
 if __name__ == "__main__":
 
+    base_dir = '/home/felipe/app'
     scrape()
+
+    jsondir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'json')
+
+    for f in os.listdir(jsondir):
+        if f.endswith('.json'):
+            jsonpath = os.path.join(jsondir, f)
+            call('NODE_PATH=. ./bin/dos-db load law '+jsonpath, shell=True)
