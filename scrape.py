@@ -8,10 +8,9 @@ import json
 import urllib2
 import lxml.html
 import lxml.etree
-from datetime import datetime
 import unicodedata
-from subprocess import call
-
+import subprocess
+from datetime import datetime
 from urlparse import urlparse, urlunparse, parse_qs
 from urllib import urlencode
 from StringIO import StringIO
@@ -62,12 +61,15 @@ def _slugify(value):
     return _slugify_hyphenate_re.sub('-', value)
 
 
-def text_to_json(url, tag, lawID, publishedAt, state, status, pagename):
+def text_to_json(url, tag, lawID, publishedAt, closingAt, state, status, pagename):
     print 'Convirtiendo TXT a JSON '+url
 
     f = open(pagename)
     fcontent = f.read()
     f.close()
+
+    if len(fcontent) == 0:
+        fcontent = '<body></body>'
 
     tree = lxml.etree.parse(StringIO(fcontent), lxml.etree.HTMLParser())
 
@@ -107,6 +109,7 @@ def text_to_json(url, tag, lawID, publishedAt, state, status, pagename):
             'tag': tag,
             'mediaTitle': mediaTitle,
             'publishedAt': publishedAt,
+            'closingAt': closingAt,
             'source': url,
             'summary': summary,
             'clauses': clauses
@@ -196,6 +199,7 @@ def scrape():
         status = 'open'
         lawID = ''
         publishedAt = ''
+        closingAt = ''
         tag = ''
 
         pagename = get_pagename(project, 'html')
@@ -205,10 +209,10 @@ def scrape():
 
         for session in get_selectors(pagename, '.ar_12black b'):
             if _slugify(session.text) == 'ley':
-                status = 'bill'
+                state = 'bill'
 
-            if _slugify(session.text) == 'retirado':
-                state = 'closed'
+            if _slugify(session.text) == 'retirado' or _slugify(session.text) == 'archivado':
+                status = 'closed'
 
         for i, session in enumerate(get_selectors(pagename, '.ar_12black')):
             if session.text:
@@ -220,6 +224,8 @@ def scrape():
                         date[0] = _months[date[0]]
                         date.pop(2)
                         publishedAt = datetime.strptime(' '.join(date), '%B %d %Y').strftime('%Y-%m-%d')
+                    if status == 'closed' or state == 'bill':
+                        closingAt = publishedAt
                 if i == 7:
                     tag = session.text
 
@@ -236,6 +242,7 @@ def scrape():
                                      'tag': tag,
                                      'lawID': lawID,
                                      'publishedAt': publishedAt,
+                                     'closingAt': closingAt,
                                      'state': state,
                                      'status': status,
                                      'pagename': get_pagename(law, 'text')})
@@ -248,16 +255,20 @@ def scrape():
                                      'tag': tag,
                                      'lawID': lawID,
                                      'publishedAt': publishedAt,
+                                     'closingAt': closingAt,
                                      'state': state,
                                      'status': status,
                                      'pagename': get_pagename(law, 'text')})
 
     for law in laws:
-
-        if not os.path.exists(law['pagename']):
-            download_file(law, law['pagename'])
-
-        json = text_to_json(**law)
+        try:
+            if not os.path.exists(law['pagename']):
+                download_file(law['url'], law['pagename'])
+    
+            json = text_to_json(**law)
+        except:
+            pass
+        
 
 
 
@@ -271,4 +282,5 @@ if __name__ == "__main__":
     for f in os.listdir(jsondir):
         if f.endswith('.json'):
             jsonpath = os.path.join(jsondir, f)
-            call('NODE_PATH=. ./bin/dos-db load law '+jsonpath, shell=True)
+            subprocess.call('NODE_PATH="." ./bin/dos-db load law '+jsonpath,
+                            cwd=base_dir, shell=True)
